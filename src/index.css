@@ -2,95 +2,94 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* LokRakshak Design System - Government-Grade Command Center */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Command Center - Deep Navy Theme */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 222 47% 14%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 222 47% 14%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary - Authority Blue */
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary - Slate */
+    --secondary: 215 28% 17%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 222 47% 11%;
 
-    --destructive: 0 84.2% 60.2%;
+    /* Alert Colors */
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 215 28% 22%;
+    --input: 215 28% 22%;
+    --ring: 217 91% 60%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Custom Risk Colors */
+    --risk-critical: 0 84% 60%;
+    --risk-high: 25 95% 53%;
+    --risk-medium: 45 93% 47%;
+    --risk-low: 142 71% 45%;
+    --risk-safe: 142 76% 36%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    /* Gradient Variables */
+    --gradient-primary: linear-gradient(135deg, hsl(217, 91%, 60%) 0%, hsl(199, 89%, 48%) 100%);
+    --gradient-danger: linear-gradient(135deg, hsl(0, 84%, 60%) 0%, hsl(25, 95%, 53%) 100%);
+    --gradient-success: linear-gradient(135deg, hsl(142, 71%, 45%) 0%, hsl(142, 76%, 36%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(222, 47%, 16%) 0%, hsl(222, 47%, 12%) 100%);
 
-    --sidebar-primary: 240 5.9% 10%;
+    /* Glow Effects */
+    --glow-primary: 0 0 20px hsl(217, 91%, 60%, 0.3);
+    --glow-danger: 0 0 20px hsl(0, 84%, 60%, 0.4);
+    --glow-success: 0 0 20px hsl(142, 71%, 45%, 0.3);
 
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar */
+    --sidebar-background: 222 47% 8%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 215 28% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 215 28% 17%;
+    --sidebar-ring: 217 91% 60%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 222 47% 11%;
     --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
+    --card: 222 47% 14%;
     --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
+    --popover: 222 47% 14%;
     --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 215 28% 17%;
     --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 215 28% 22%;
+    --input: 215 28% 22%;
+    --ring: 217 91% 60%;
   }
 }
 
@@ -100,6 +99,228 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  code, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  /* Command Center Card Variants */
+  .card-command {
+    @apply bg-card border border-border rounded-lg;
+    background: var(--gradient-card);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  }
+
+  .card-stat {
+    @apply relative overflow-hidden rounded-xl border border-border p-6;
+    background: var(--gradient-card);
+  }
+
+  .card-stat::before {
+    content: '';
+    @apply absolute inset-0 opacity-5;
+    background: radial-gradient(circle at top right, hsl(var(--primary)), transparent 70%);
+  }
+
+  /* Risk Badge Variants */
+  .badge-critical {
+    @apply px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wide;
+    background: hsl(var(--risk-critical) / 0.2);
+    color: hsl(var(--risk-critical));
+    border: 1px solid hsl(var(--risk-critical) / 0.3);
+  }
+
+  .badge-high {
+    @apply px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wide;
+    background: hsl(var(--risk-high) / 0.2);
+    color: hsl(var(--risk-high));
+    border: 1px solid hsl(var(--risk-high) / 0.3);
+  }
+
+  .badge-medium {
+    @apply px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wide;
+    background: hsl(var(--risk-medium) / 0.2);
+    color: hsl(var(--risk-medium));
+    border: 1px solid hsl(var(--risk-medium) / 0.3);
+  }
+
+  .badge-low {
+    @apply px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wide;
+    background: hsl(var(--risk-low) / 0.2);
+    color: hsl(var(--risk-low));
+    border: 1px solid hsl(var(--risk-low) / 0.3);
+  }
+
+  /* SOS Button */
+  .btn-sos {
+    @apply relative px-8 py-4 rounded-full font-bold text-lg uppercase tracking-wider;
+    background: var(--gradient-danger);
+    box-shadow: var(--glow-danger), 0 4px 14px 0 rgba(239, 68, 68, 0.4);
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .btn-sos:hover {
+    transform: scale(1.05);
+    box-shadow: var(--glow-danger), 0 6px 20px 0 rgba(239, 68, 68, 0.5);
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 20px hsl(0, 84%, 60%, 0.4), 0 4px 14px 0 rgba(239, 68, 68, 0.4);
+    }
+    50% {
+      box-shadow: 0 0 40px hsl(0, 84%, 60%, 0.6), 0 4px 20px 0 rgba(239, 68, 68, 0.6);
+    }
+  }
+
+  /* Heatmap Zones */
+  .zone-critical {
+    background: radial-gradient(circle, hsl(0, 84%, 60%, 0.6) 0%, transparent 70%);
+  }
+
+  .zone-high {
+    background: radial-gradient(circle, hsl(25, 95%, 53%, 0.5) 0%, transparent 70%);
+  }
+
+  .zone-medium {
+    background: radial-gradient(circle, hsl(45, 93%, 47%, 0.4) 0%, transparent 70%);
+  }
+
+  .zone-safe {
+    background: radial-gradient(circle, hsl(142, 71%, 45%, 0.3) 0%, transparent 70%);
+  }
+
+  /* Data Table Styling */
+  .table-command {
+    @apply w-full text-sm;
+  }
+
+  .table-command th {
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border;
+  }
+
+  .table-command td {
+    @apply px-4 py-4 border-b border-border/50;
+  }
+
+  .table-command tr:hover {
+    @apply bg-secondary/30;
+  }
+
+  /* Sidebar Navigation */
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground transition-all duration-200;
+  }
+
+  .nav-item:hover {
+    @apply bg-secondary text-foreground;
+  }
+
+  .nav-item.active {
+    @apply bg-primary/10 text-primary border-l-2 border-primary;
+  }
+
+  /* Animated Grid Background */
+  .grid-pattern {
+    background-image: 
+      linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
+
+  /* Glassmorphism Effect */
+  .glass {
+    @apply backdrop-blur-xl;
+    background: hsl(var(--card) / 0.8);
+  }
+
+  /* Status Indicator */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .status-online {
+    @apply bg-green-500;
+    box-shadow: 0 0 8px hsl(142, 71%, 45%);
+  }
+
+  .status-alert {
+    @apply bg-red-500;
+    box-shadow: 0 0 8px hsl(0, 84%, 60%);
+    animation: blink 1s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* Chart Container */
+  .chart-container {
+    @apply p-4 rounded-xl border border-border;
+    background: var(--gradient-card);
+  }
+
+  /* Scrollbar Styling */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-secondary rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-in {
+    animation: slideIn 0.3s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 }
