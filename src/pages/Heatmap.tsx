@@ -1,5 +1,5 @@
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { CrimeHeatmap } from '@/components/dashboard/CrimeHeatmap';
+import { CrimeMap } from '@/components/map/CrimeMap';
 
 export default function Heatmap() {
   return (
@@ -7,7 +7,7 @@ export default function Heatmap() {
       title="Safety Heatmap"
       subtitle="Interactive crime hotspot visualization"
     >
-      <CrimeHeatmap />
+      <CrimeMap />
     </DashboardLayout>
   );
 }
