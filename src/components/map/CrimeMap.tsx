@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { crimeHotspots, incidents } from '@/data/mockData';
-import { AlertTriangle, Clock, MapPin, Crosshair } from 'lucide-react';
+import { useCrimeData } from '@/hooks/useCrimeData';
+import { useIncidents } from '@/hooks/useIncidents';
+import { AlertTriangle, Clock, MapPin, Crosshair, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Thane city center coordinates
@@ -28,8 +29,17 @@ export function CrimeMap() {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
 
+  const { crimeData, isLoading: crimeLoading } = useCrimeData();
+  const { incidents, isLoading: incidentsLoading } = useIncidents();
+
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
+    if (!mapRef.current) return;
+
+    // Remove existing map
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
+    }
 
     // Initialize map
     const map = L.map(mapRef.current, {
@@ -42,39 +52,37 @@ export function CrimeMap() {
 
     // Dark tile layer
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
       maxZoom: 19,
     }).addTo(map);
 
-    // Add hotspot circles
-    crimeHotspots.forEach((hotspot) => {
-      const circle = L.circle([hotspot.coordinates.lat, hotspot.coordinates.lng], {
-        color: getRiskColor(hotspot.riskScore),
-        fillColor: getRiskColor(hotspot.riskScore),
+    // Add crime data circles
+    crimeData.forEach((data) => {
+      const circle = L.circle([Number(data.latitude), Number(data.longitude)], {
+        color: getRiskColor(data.risk_score),
+        fillColor: getRiskColor(data.risk_score),
         fillOpacity: 0.35,
         weight: 2,
-        radius: hotspot.riskScore * 15,
+        radius: data.risk_score * 15,
       }).addTo(map);
 
       circle.bindPopup(`
         <div style="min-width: 200px; padding: 8px;">
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-            <strong style="color: #3b82f6;">${hotspot.zone}</strong>
+            <strong style="color: #3b82f6;">${data.zone_name}</strong>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
             <span style="color: #94a3b8;">Risk Score</span>
-            <span style="background: ${getRiskColor(hotspot.riskScore)}22; color: ${getRiskColor(hotspot.riskScore)}; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">
-              ${hotspot.riskScore} (${getRiskLabel(hotspot.riskScore)})
+            <span style="background: ${getRiskColor(data.risk_score)}22; color: ${getRiskColor(data.risk_score)}; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">
+              ${data.risk_score} (${getRiskLabel(data.risk_score)})
             </span>
           </div>
           <div style="color: #94a3b8; font-size: 13px; margin-bottom: 4px;">
-            ⚠️ ${hotspot.predictedCrimes} predicted incidents
+            ⚠️ ${data.incident_count} recorded incidents
           </div>
           <div style="color: #94a3b8; font-size: 13px; margin-bottom: 8px;">
-            🕐 Peak: ${hotspot.timeWindow}
-          </div>
-          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-            ${hotspot.crimeTypes.map(type => `<span style="background: #1e293b; color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${type}</span>`).join('')}
+            📍 Type: ${data.crime_type}
           </div>
         </div>
       `);
@@ -82,23 +90,31 @@ export function CrimeMap() {
 
     // Add incident markers
     incidents.forEach((incident) => {
-      const color = incident.riskLevel === 'critical' ? '#ef4444' :
-                    incident.riskLevel === 'high' ? '#f97316' :
-                    incident.riskLevel === 'medium' ? '#eab308' : '#22c55e';
+      const color =
+        incident.severity === 'critical'
+          ? '#ef4444'
+          : incident.severity === 'high'
+          ? '#f97316'
+          : incident.severity === 'medium'
+          ? '#eab308'
+          : '#22c55e';
 
-      const marker = L.circleMarker([incident.coordinates.lat, incident.coordinates.lng], {
-        color: color,
-        fillColor: color,
-        fillOpacity: 0.8,
-        weight: 2,
-        radius: 8,
-      }).addTo(map);
+      const marker = L.circleMarker(
+        [Number(incident.latitude), Number(incident.longitude)],
+        {
+          color: color,
+          fillColor: color,
+          fillOpacity: 0.8,
+          weight: 2,
+          radius: 8,
+        }
+      ).addTo(map);
 
       marker.bindPopup(`
         <div style="min-width: 180px; padding: 8px;">
-          <div style="font-family: monospace; font-size: 11px; color: #3b82f6; margin-bottom: 4px;">${incident.id}</div>
-          <div style="font-weight: 600; margin-bottom: 4px;">${incident.type}</div>
-          <div style="color: #94a3b8; font-size: 13px; margin-bottom: 8px;">${incident.location}</div>
+          <div style="font-family: monospace; font-size: 11px; color: #3b82f6; margin-bottom: 4px;">${incident.id.slice(0, 8)}</div>
+          <div style="font-weight: 600; margin-bottom: 4px;">${incident.title}</div>
+          <div style="color: #94a3b8; font-size: 13px; margin-bottom: 8px;">${incident.location_name}</div>
           <span style="background: ${color}22; color: ${color}; padding: 2px 8px; border-radius: 4px; font-size: 12px; text-transform: capitalize;">
             ${incident.status}
           </span>
@@ -109,7 +125,7 @@ export function CrimeMap() {
     // Fit bounds to Thane city
     map.fitBounds([
       [19.15, 72.92],
-      [19.28, 73.05]
+      [19.28, 73.05],
     ]);
 
     return () => {
@@ -118,19 +134,31 @@ export function CrimeMap() {
         mapInstanceRef.current = null;
       }
     };
-  }, []);
+  }, [crimeData, incidents]);
+
+  const isLoading = crimeLoading || incidentsLoading;
 
   return (
     <div className="card-command overflow-hidden">
       <div className="px-6 py-4 border-b border-border flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-foreground">Interactive Crime Heatmap</h3>
-          <p className="text-sm text-muted-foreground">Thane City - Live Hotspot Visualization</p>
+          <h3 className="text-lg font-semibold text-foreground">
+            Interactive Crime Heatmap
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Thane City - Live Hotspot Visualization
+          </p>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Crosshair className="h-4 w-4 text-primary animate-pulse" />
-            <span className="text-xs text-muted-foreground">Real-time tracking</span>
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 text-primary animate-spin" />
+            ) : (
+              <Crosshair className="h-4 w-4 text-primary animate-pulse" />
+            )}
+            <span className="text-xs text-muted-foreground">
+              {isLoading ? 'Loading data...' : 'Real-time tracking'}
+            </span>
           </div>
         </div>
       </div>
@@ -165,47 +193,41 @@ export function CrimeMap() {
 
       {/* Hotspot Details Grid */}
       <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-        {crimeHotspots.map((hotspot) => (
+        {crimeData.map((data) => (
           <div
-            key={`detail-${hotspot.id}`}
+            key={data.id}
             className="p-3 rounded-lg bg-secondary/30 border border-border hover:border-primary/50 transition-colors cursor-pointer"
           >
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-primary" />
-                <h4 className="text-sm font-medium text-foreground">{hotspot.zone}</h4>
+                <h4 className="text-sm font-medium text-foreground">{data.zone_name}</h4>
               </div>
               <span
                 className={cn(
                   'px-2 py-0.5 rounded text-xs font-semibold',
-                  hotspot.riskScore >= 70 && 'bg-red-500/20 text-red-400',
-                  hotspot.riskScore >= 50 && hotspot.riskScore < 70 && 'bg-orange-500/20 text-orange-400',
-                  hotspot.riskScore >= 30 && hotspot.riskScore < 50 && 'bg-yellow-500/20 text-yellow-400',
-                  hotspot.riskScore < 30 && 'bg-green-500/20 text-green-400'
+                  data.risk_score >= 70 && 'bg-red-500/20 text-red-400',
+                  data.risk_score >= 50 &&
+                    data.risk_score < 70 &&
+                    'bg-orange-500/20 text-orange-400',
+                  data.risk_score >= 30 &&
+                    data.risk_score < 50 &&
+                    'bg-yellow-500/20 text-yellow-400',
+                  data.risk_score < 30 && 'bg-green-500/20 text-green-400'
                 )}
               >
-                {hotspot.riskScore}
+                {data.risk_score}
               </span>
             </div>
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <AlertTriangle className="h-3 w-3" />
-                <span>{hotspot.predictedCrimes} predicted incidents</span>
+                <span>{data.incident_count} recorded incidents</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                <span>Peak: {hotspot.timeWindow}</span>
+                <span>Type: {data.crime_type}</span>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-1 mt-2">
-              {hotspot.crimeTypes.slice(0, 2).map((type) => (
-                <span
-                  key={type}
-                  className="px-2 py-0.5 rounded text-[10px] bg-secondary text-muted-foreground"
-                >
-                  {type}
-                </span>
-              ))}
             </div>
           </div>
         ))}

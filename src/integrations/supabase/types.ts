@@ -14,7 +14,225 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      complaints: {
+        Row: {
+          complaint_type: string
+          created_at: string
+          description: string
+          id: string
+          latitude: number | null
+          location_name: string
+          longitude: number | null
+          status: Database["public"]["Enums"]["complaint_status"]
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          complaint_type: string
+          created_at?: string
+          description: string
+          id?: string
+          latitude?: number | null
+          location_name: string
+          longitude?: number | null
+          status?: Database["public"]["Enums"]["complaint_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          complaint_type?: string
+          created_at?: string
+          description?: string
+          id?: string
+          latitude?: number | null
+          location_name?: string
+          longitude?: number | null
+          status?: Database["public"]["Enums"]["complaint_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      crime_data: {
+        Row: {
+          created_at: string
+          crime_type: string
+          id: string
+          incident_count: number
+          latitude: number
+          longitude: number
+          recorded_date: string
+          risk_score: number
+          zone_name: string
+        }
+        Insert: {
+          created_at?: string
+          crime_type: string
+          id?: string
+          incident_count?: number
+          latitude: number
+          longitude: number
+          recorded_date?: string
+          risk_score?: number
+          zone_name: string
+        }
+        Update: {
+          created_at?: string
+          crime_type?: string
+          id?: string
+          incident_count?: number
+          latitude?: number
+          longitude?: number
+          recorded_date?: string
+          risk_score?: number
+          zone_name?: string
+        }
+        Relationships: []
+      }
+      high_risk_zones: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          latitude: number
+          longitude: number
+          radius_meters: number
+          risk_level: string
+          updated_at: string
+          zone_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          latitude: number
+          longitude: number
+          radius_meters?: number
+          risk_level: string
+          updated_at?: string
+          zone_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          latitude?: number
+          longitude?: number
+          radius_meters?: number
+          risk_level?: string
+          updated_at?: string
+          zone_name?: string
+        }
+        Relationships: []
+      }
+      incidents: {
+        Row: {
+          assigned_officer: string | null
+          created_at: string
+          description: string | null
+          id: string
+          incident_type: string
+          latitude: number
+          location_name: string
+          longitude: number
+          reported_by: string | null
+          severity: Database["public"]["Enums"]["incident_severity"]
+          status: Database["public"]["Enums"]["incident_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_officer?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          incident_type: string
+          latitude: number
+          location_name: string
+          longitude: number
+          reported_by?: string | null
+          severity?: Database["public"]["Enums"]["incident_severity"]
+          status?: Database["public"]["Enums"]["incident_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_officer?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          incident_type?: string
+          latitude?: number
+          location_name?: string
+          longitude?: number
+          reported_by?: string | null
+          severity?: Database["public"]["Enums"]["incident_severity"]
+          status?: Database["public"]["Enums"]["incident_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sos_alerts: {
+        Row: {
+          created_at: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          resolved_at: string | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          resolved_at?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          resolved_at?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_locations: {
+        Row: {
+          accuracy: number | null
+          id: string
+          is_tracking_enabled: boolean
+          last_updated: string
+          latitude: number
+          longitude: number
+          user_id: string
+        }
+        Insert: {
+          accuracy?: number | null
+          id?: string
+          is_tracking_enabled?: boolean
+          last_updated?: string
+          latitude: number
+          longitude: number
+          user_id: string
+        }
+        Update: {
+          accuracy?: number | null
+          id?: string
+          is_tracking_enabled?: boolean
+          last_updated?: string
+          latitude?: number
+          longitude?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +241,9 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      complaint_status: "pending" | "in_progress" | "resolved" | "closed"
+      incident_severity: "low" | "medium" | "high" | "critical"
+      incident_status: "reported" | "investigating" | "resolved" | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +370,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      complaint_status: ["pending", "in_progress", "resolved", "closed"],
+      incident_severity: ["low", "medium", "high", "critical"],
+      incident_status: ["reported", "investigating", "resolved", "closed"],
+    },
   },
 } as const

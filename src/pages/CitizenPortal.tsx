@@ -1,9 +1,8 @@
-import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { SOSButton } from '@/components/citizen/SOSButton';
 import { ComplaintForm } from '@/components/citizen/ComplaintForm';
 import { ComplaintTracker } from '@/components/citizen/ComplaintTracker';
-import { SafetyAlertDemo } from '@/components/citizen/SafetyAlert';
+import { GeofenceAlerts } from '@/components/citizen/SafetyAlert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Shield, FileText, Search, Phone } from 'lucide-react';
 
@@ -14,8 +13,8 @@ export default function CitizenPortal() {
       subtitle="Report incidents and access emergency services"
     >
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Safety Alert Demo */}
-        <SafetyAlertDemo />
+        {/* Real-time Geofencing Alerts */}
+        <GeofenceAlerts />
 
         {/* Emergency Section */}
         <div className="card-command p-8 text-center">
