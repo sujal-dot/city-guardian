@@ -1,29 +1,34 @@
 import { useState } from 'react';
 import { Phone, AlertTriangle, MapPin, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
+import { useSOS } from '@/hooks/useSOS';
+import { useGeolocation } from '@/hooks/useGeolocation';
 
 export function SOSButton() {
-  const [isActivating, setIsActivating] = useState(false);
   const [isActive, setIsActive] = useState(false);
-  const { toast } = useToast();
+  const { sendSOSAlert, isSubmitting } = useSOS();
+  const { getCurrentPosition } = useGeolocation();
 
   const handleSOS = async () => {
-    setIsActivating(true);
+    try {
+      // Try to get location
+      let location: { latitude: number; longitude: number } | undefined;
+      try {
+        location = await getCurrentPosition();
+      } catch (err) {
+        console.log('Could not get location, sending SOS without it');
+      }
 
-    // Simulate location fetching and alert sending
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+      const success = await sendSOSAlert(location);
 
-    setIsActivating(false);
-    setIsActive(true);
-
-    toast({
-      title: "🚨 Emergency Alert Sent!",
-      description: "Police have been notified. Help is on the way. Stay calm and stay where you are.",
-    });
-
-    // Reset after 10 seconds
-    setTimeout(() => setIsActive(false), 10000);
+      if (success) {
+        setIsActive(true);
+        // Reset after 10 seconds
+        setTimeout(() => setIsActive(false), 10000);
+      }
+    } catch (error) {
+      console.error('SOS error:', error);
+    }
   };
 
   return (
@@ -31,10 +36,10 @@ export function SOSButton() {
       {/* SOS Button */}
       <button
         onClick={handleSOS}
-        disabled={isActivating || isActive}
+        disabled={isSubmitting || isActive}
         className={cn(
           'relative group',
-          isActivating && 'cursor-wait',
+          isSubmitting && 'cursor-wait',
           isActive && 'cursor-not-allowed'
         )}
       >
@@ -51,11 +56,11 @@ export function SOSButton() {
             'relative flex h-40 w-40 items-center justify-center rounded-full transition-all duration-300',
             'bg-gradient-to-br from-destructive to-risk-high',
             'shadow-glow-danger',
-            !isActivating && !isActive && 'hover:scale-105 active:scale-95',
+            !isSubmitting && !isActive && 'hover:scale-105 active:scale-95',
             isActive && 'from-risk-safe to-green-600'
           )}
         >
-          {isActivating ? (
+          {isSubmitting ? (
             <div className="flex flex-col items-center gap-2">
               <Loader2 className="h-12 w-12 text-destructive-foreground animate-spin" />
               <span className="text-sm font-medium text-destructive-foreground">

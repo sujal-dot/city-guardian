@@ -1,22 +1,28 @@
-import { complaints } from '@/data/mockData';
 import { Clock, MapPin, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useComplaints } from '@/hooks/useComplaints';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function ComplaintTracker() {
-  const statusStyles: Record<string, {
-    icon: typeof Clock;
-    bg: string;
-    text: string;
-    border: string;
-    animate?: boolean;
-  }> = {
+  const { complaints, isLoading } = useComplaints();
+
+  const statusStyles: Record<
+    string,
+    {
+      icon: typeof Clock;
+      bg: string;
+      text: string;
+      border: string;
+      animate?: boolean;
+    }
+  > = {
     pending: {
       icon: Clock,
       bg: 'bg-risk-medium/10',
       text: 'text-risk-medium',
       border: 'border-risk-medium/30',
     },
-    'in-progress': {
+    in_progress: {
       icon: Loader2,
       bg: 'bg-primary/10',
       text: 'text-primary',
@@ -28,6 +34,12 @@ export function ComplaintTracker() {
       bg: 'bg-risk-safe/10',
       text: 'text-risk-safe',
       border: 'border-risk-safe/30',
+    },
+    closed: {
+      icon: AlertCircle,
+      bg: 'bg-muted/50',
+      text: 'text-muted-foreground',
+      border: 'border-muted',
     },
   };
 
@@ -41,6 +53,40 @@ export function ComplaintTracker() {
     });
   };
 
+  if (isLoading) {
+    return (
+      <div className="card-command">
+        <div className="px-6 py-4 border-b border-border">
+          <h3 className="text-lg font-semibold text-foreground">My Complaints</h3>
+          <p className="text-sm text-muted-foreground">Track your filed complaints</p>
+        </div>
+        <div className="p-4 space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-32 w-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (complaints.length === 0) {
+    return (
+      <div className="card-command">
+        <div className="px-6 py-4 border-b border-border">
+          <h3 className="text-lg font-semibold text-foreground">My Complaints</h3>
+          <p className="text-sm text-muted-foreground">Track your filed complaints</p>
+        </div>
+        <div className="p-8 text-center">
+          <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">No complaints filed yet</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            File a complaint using the form to see it here
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card-command">
       <div className="px-6 py-4 border-b border-border">
@@ -49,7 +95,7 @@ export function ComplaintTracker() {
       </div>
       <div className="p-4 space-y-3">
         {complaints.map((complaint, index) => {
-          const status = statusStyles[complaint.status];
+          const status = statusStyles[complaint.status] || statusStyles.pending;
           const StatusIcon = status.icon;
 
           return (
@@ -65,10 +111,10 @@ export function ComplaintTracker() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <span className="font-mono text-xs text-muted-foreground">
-                    {complaint.id}
+                    {complaint.id.slice(0, 8)}
                   </span>
                   <h4 className="text-base font-medium text-foreground">
-                    {complaint.type}
+                    {complaint.complaint_type}
                   </h4>
                 </div>
                 <div
@@ -81,7 +127,7 @@ export function ComplaintTracker() {
                   <StatusIcon
                     className={cn('h-3.5 w-3.5', status.animate && 'animate-spin')}
                   />
-                  <span className="capitalize">{complaint.status.replace('-', ' ')}</span>
+                  <span className="capitalize">{complaint.status.replace('_', ' ')}</span>
                 </div>
               </div>
 
@@ -92,11 +138,11 @@ export function ComplaintTracker() {
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <MapPin className="h-3.5 w-3.5" />
-                  <span>{complaint.location}</span>
+                  <span className="truncate max-w-[150px]">{complaint.location_name}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Clock className="h-3.5 w-3.5" />
-                  <span>{formatDate(complaint.timestamp)}</span>
+                  <span>{formatDate(complaint.created_at)}</span>
                 </div>
               </div>
 
@@ -107,7 +153,7 @@ export function ComplaintTracker() {
                     'flex-1 h-1 rounded-full',
                     complaint.status === 'pending'
                       ? 'bg-risk-medium'
-                      : complaint.status === 'in-progress'
+                      : complaint.status === 'in_progress'
                       ? 'bg-primary'
                       : 'bg-risk-safe'
                   )}
@@ -115,9 +161,9 @@ export function ComplaintTracker() {
                 <div
                   className={cn(
                     'flex-1 h-1 rounded-full',
-                    complaint.status === 'in-progress'
+                    complaint.status === 'in_progress'
                       ? 'bg-primary'
-                      : complaint.status === 'resolved'
+                      : complaint.status === 'resolved' || complaint.status === 'closed'
                       ? 'bg-risk-safe'
                       : 'bg-secondary'
                   )}
@@ -125,7 +171,9 @@ export function ComplaintTracker() {
                 <div
                   className={cn(
                     'flex-1 h-1 rounded-full',
-                    complaint.status === 'resolved' ? 'bg-risk-safe' : 'bg-secondary'
+                    complaint.status === 'resolved' || complaint.status === 'closed'
+                      ? 'bg-risk-safe'
+                      : 'bg-secondary'
                   )}
                 />
               </div>

@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
-import { AlertTriangle, MapPin, Shield, X } from 'lucide-react';
+import { AlertTriangle, MapPin, Shield, X, Navigation } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useGeolocation } from '@/hooks/useGeolocation';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface SafetyAlertProps {
   zone: string;
   riskLevel: 'critical' | 'high' | 'medium';
+  distance?: number;
   onDismiss?: () => void;
 }
 
-export function SafetyAlert({ zone, riskLevel, onDismiss }: SafetyAlertProps) {
+export function SafetyAlert({ zone, riskLevel, distance, onDismiss }: SafetyAlertProps) {
   const [isVisible, setIsVisible] = useState(true);
 
   const alertStyles = {
@@ -74,7 +78,9 @@ export function SafetyAlert({ zone, riskLevel, onDismiss }: SafetyAlertProps) {
               </h4>
               <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                 <MapPin className="h-4 w-4" />
-                <span>You are near {zone}</span>
+                <span>
+                  {zone} {distance && `(${distance}m away)`}
+                </span>
               </div>
             </div>
           </div>
@@ -88,7 +94,8 @@ export function SafetyAlert({ zone, riskLevel, onDismiss }: SafetyAlertProps) {
 
         <div className="mt-4 space-y-2 text-sm text-muted-foreground">
           <p>
-            This area has a <span className={cn('font-semibold', style.text)}>{riskLevel} risk</span> rating
+            This area has a{' '}
+            <span className={cn('font-semibold', style.text)}>{riskLevel} risk</span> rating
             based on recent incidents. Please stay vigilant.
           </p>
         </div>
@@ -108,7 +115,96 @@ export function SafetyAlert({ zone, riskLevel, onDismiss }: SafetyAlertProps) {
   );
 }
 
-// Demo component that shows the alert
+// Live geofencing alert component
+export function GeofenceAlerts() {
+  const {
+    isTracking,
+    startTracking,
+    stopTracking,
+    nearbyZones,
+    latitude,
+    longitude,
+    error,
+  } = useGeolocation();
+
+  const [dismissedZones, setDismissedZones] = useState<Set<string>>(new Set());
+
+  const handleDismissZone = (zoneId: string) => {
+    setDismissedZones((prev) => new Set([...prev, zoneId]));
+  };
+
+  const visibleZones = nearbyZones.filter((zone) => !dismissedZones.has(zone.id));
+
+  return (
+    <div className="space-y-4">
+      {/* Tracking Toggle */}
+      <div className="card-command p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className={cn(
+                'flex h-10 w-10 items-center justify-center rounded-lg',
+                isTracking ? 'bg-primary/20' : 'bg-secondary'
+              )}
+            >
+              <Navigation
+                className={cn(
+                  'h-5 w-5',
+                  isTracking ? 'text-primary animate-pulse' : 'text-muted-foreground'
+                )}
+              />
+            </div>
+            <div>
+              <Label htmlFor="tracking" className="text-base font-medium">
+                Real-time Safety Tracking
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                {isTracking
+                  ? 'Monitoring your location for nearby high-risk zones'
+                  : 'Enable to receive alerts when entering risky areas'}
+              </p>
+            </div>
+          </div>
+          <Switch
+            id="tracking"
+            checked={isTracking}
+            onCheckedChange={(checked) => (checked ? startTracking() : stopTracking())}
+          />
+        </div>
+
+        {isTracking && latitude && longitude && (
+          <div className="mt-3 pt-3 border-t border-border">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="w-2 h-2 rounded-full bg-risk-safe animate-pulse" />
+              <span>
+                Location: {latitude.toFixed(4)}, {longitude.toFixed(4)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-3 p-2 bg-destructive/10 rounded-lg text-sm text-destructive">
+            {error}
+          </div>
+        )}
+      </div>
+
+      {/* Active Zone Alerts */}
+      {visibleZones.map((zone) => (
+        <SafetyAlert
+          key={zone.id}
+          zone={zone.zone_name}
+          riskLevel={zone.risk_level as 'critical' | 'high' | 'medium'}
+          distance={zone.distance}
+          onDismiss={() => handleDismissZone(zone.id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Demo component that shows the alert (for when not using real geolocation)
 export function SafetyAlertDemo() {
   const [showAlert, setShowAlert] = useState(true);
 

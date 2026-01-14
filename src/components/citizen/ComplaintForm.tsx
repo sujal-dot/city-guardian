@@ -11,7 +11,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { MapPin, Send, Loader2, CheckCircle } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useComplaints } from '@/hooks/useComplaints';
+import { useGeolocation } from '@/hooks/useGeolocation';
 
 const complaintTypes = [
   'Theft / Robbery',
@@ -26,40 +27,64 @@ const complaintTypes = [
 ];
 
 export function ComplaintForm() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [lastComplaintId, setLastComplaintId] = useState<string>('');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [location, setLocation] = useState('');
-  const { toast } = useToast();
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [complaintType, setComplaintType] = useState('');
+  const [description, setDescription] = useState('');
+
+  const { submitComplaint, isLoading } = useComplaints();
+  const { getCurrentPosition } = useGeolocation();
 
   const handleGetLocation = async () => {
     setIsGettingLocation(true);
-    
-    // Simulate location detection
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setLocation('Thane Station Area, Thane West, Maharashtra 400601');
-    setIsGettingLocation(false);
-    
-    toast({
-      title: "Location detected",
-      description: "Your current location has been captured.",
-    });
+
+    try {
+      const position = await getCurrentPosition();
+      setCoordinates({ lat: position.latitude, lng: position.longitude });
+
+      // Reverse geocode to get address (simplified)
+      setLocation(`Lat: ${position.latitude.toFixed(4)}, Lng: ${position.longitude.toFixed(4)}`);
+
+      // In production, you'd use a geocoding API
+      // For now, we'll just show coordinates
+    } catch (error) {
+      console.error('Error getting location:', error);
+      setLocation('Unable to get location. Please enter manually.');
+    } finally {
+      setIsGettingLocation(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    if (!complaintType || !description || !location) {
+      return;
+    }
 
-    setIsSubmitting(false);
-    setIsSubmitted(true);
-
-    toast({
-      title: "Complaint Registered Successfully!",
-      description: "Your complaint ID is CMP-2024-007. Track it in 'My Complaints'.",
+    const success = await submitComplaint({
+      complaint_type: complaintType,
+      description,
+      location_name: location,
+      latitude: coordinates?.lat,
+      longitude: coordinates?.lng,
     });
+
+    if (success) {
+      setIsSubmitted(true);
+      setLastComplaintId(`CMP-${Date.now().toString().slice(-6)}`);
+    }
+  };
+
+  const handleReset = () => {
+    setIsSubmitted(false);
+    setComplaintType('');
+    setDescription('');
+    setLocation('');
+    setCoordinates(null);
   };
 
   if (isSubmitted) {
@@ -78,9 +103,9 @@ export function ComplaintForm() {
         </p>
         <div className="bg-secondary rounded-lg p-4 mb-6">
           <p className="text-sm text-muted-foreground">Complaint ID</p>
-          <p className="text-2xl font-mono font-bold text-primary">CMP-2024-007</p>
+          <p className="text-2xl font-mono font-bold text-primary">{lastComplaintId}</p>
         </div>
-        <Button onClick={() => setIsSubmitted(false)} variant="outline">
+        <Button onClick={handleReset} variant="outline">
           File Another Complaint
         </Button>
       </div>
@@ -99,13 +124,13 @@ export function ComplaintForm() {
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="type">Complaint Type</Label>
-          <Select required>
+          <Select value={complaintType} onValueChange={setComplaintType} required>
             <SelectTrigger>
               <SelectValue placeholder="Select complaint type" />
             </SelectTrigger>
             <SelectContent>
               {complaintTypes.map((type) => (
-                <SelectItem key={type} value={type.toLowerCase().replace(/ /g, '-')}>
+                <SelectItem key={type} value={type}>
                   {type}
                 </SelectItem>
               ))}
@@ -117,6 +142,8 @@ export function ComplaintForm() {
           <Label htmlFor="description">Description</Label>
           <Textarea
             id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             placeholder="Describe the incident in detail..."
             className="min-h-[120px] bg-secondary/50"
             required
@@ -147,6 +174,11 @@ export function ComplaintForm() {
               )}
             </Button>
           </div>
+          {coordinates && (
+            <p className="text-xs text-muted-foreground">
+              📍 Coordinates captured: {coordinates.lat.toFixed(6)}, {coordinates.lng.toFixed(6)}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -161,11 +193,7 @@ export function ComplaintForm() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="time">Time of Incident</Label>
-            <Input
-              id="time"
-              type="time"
-              className="bg-secondary/50"
-            />
+            <Input id="time" type="time" className="bg-secondary/50" />
           </div>
         </div>
 
@@ -179,12 +207,8 @@ export function ComplaintForm() {
           />
         </div>
 
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? (
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Submitting...
