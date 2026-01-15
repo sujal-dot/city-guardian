@@ -1,6 +1,17 @@
-import { Bell, Search, User, AlertTriangle, Wifi } from 'lucide-react';
+import { Bell, Search, User, AlertTriangle, Wifi, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/hooks/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface HeaderProps {
   title: string;
@@ -8,6 +19,10 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
+  const { user, signOut, roles } = useAuthContext();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
   const currentTime = new Date().toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
@@ -21,6 +36,23 @@ export function Header({ title, subtitle }: HeaderProps) {
     month: 'long',
     day: 'numeric',
   });
+
+  const handleLogout = async () => {
+    const { error } = await signOut();
+    if (error) {
+      toast({
+        title: 'Logout Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+    toast({
+      title: 'Logged Out',
+      description: 'You have been logged out successfully.',
+    });
+    navigate('/login');
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 backdrop-blur px-6">
@@ -74,9 +106,28 @@ export function Header({ title, subtitle }: HeaderProps) {
         </div>
 
         {/* User Menu */}
-        <Button variant="ghost" size="icon" className="rounded-full bg-secondary">
-          <User className="h-5 w-5" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full bg-secondary">
+              <User className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">{user?.email}</p>
+                <p className="text-xs leading-none text-muted-foreground capitalize">
+                  {roles.join(', ') || 'User'}
+                </p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
