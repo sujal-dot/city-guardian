@@ -22,6 +22,7 @@ const navItems = [
   { icon: Shield, label: 'Risk Scoring', path: '/risk-scoring' },
   { icon: Map, label: 'Safety Heatmap', path: '/heatmap' },
   { icon: Route, label: 'AI Patrol', path: '/patrol' },
+  { icon: Settings, label: 'Admin', path: '/admin' },
   { icon: Users, label: 'Citizen Portal', path: '/citizen' },
 ];
 
