@@ -12,23 +12,32 @@ import {
   ChevronLeft,
   ChevronRight,
   Radio,
+  UserCog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: FileWarning, label: 'Incidents', path: '/incidents' },
-  { icon: Brain, label: 'Crime Prediction', path: '/prediction' },
-  { icon: Shield, label: 'Risk Scoring', path: '/risk-scoring' },
-  { icon: Map, label: 'Safety Heatmap', path: '/heatmap' },
-  { icon: Route, label: 'AI Patrol', path: '/patrol' },
-  { icon: Settings, label: 'Admin', path: '/admin' },
-  { icon: Users, label: 'Citizen Portal', path: '/citizen' },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/', roles: ['police', 'admin'] },
+  { icon: FileWarning, label: 'Incidents', path: '/incidents', roles: ['police', 'admin'] },
+  { icon: Brain, label: 'Crime Prediction', path: '/prediction', roles: ['police', 'admin'] },
+  { icon: Shield, label: 'Risk Scoring', path: '/risk-scoring', roles: ['police', 'admin'] },
+  { icon: Map, label: 'Safety Heatmap', path: '/heatmap', roles: ['police', 'admin'] },
+  { icon: Route, label: 'AI Patrol', path: '/patrol', roles: ['police', 'admin'] },
+  { icon: Settings, label: 'Admin', path: '/admin', roles: ['police', 'admin'] },
+  { icon: UserCog, label: 'Role Management', path: '/role-management', roles: ['admin'] },
+  { icon: Users, label: 'Citizen Portal', path: '/citizen', roles: ['citizen', 'police', 'admin'] },
 ];
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { roles } = useAuthContext();
+
+  // Filter nav items based on user roles
+  const filteredNavItems = navItems.filter((item) =>
+    item.roles.some((role) => roles.includes(role as any))
+  );
 
   return (
     <aside
@@ -57,7 +66,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex flex-col gap-1 p-3 mt-2">
-        {navItems.map((item) => {
+        {filteredNavItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <Link

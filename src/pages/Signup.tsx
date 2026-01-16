@@ -19,7 +19,7 @@ const Signup = () => {
 
   // Redirect if already logged in
   if (user) {
-    navigate('/citizen', { replace: true });
+    navigate('/landing', { replace: true });
     return null;
   }
 
@@ -54,8 +54,8 @@ const Signup = () => {
       description: 'Welcome to the Crime Prediction & Prevention System.',
     });
 
-    // Navigation will be handled by auth state change
-    navigate('/citizen', { replace: true });
+    // Navigate to landing page which will route based on role
+    navigate('/landing', { replace: true });
   };
 
   return (

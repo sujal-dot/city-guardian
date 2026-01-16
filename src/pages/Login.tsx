@@ -17,12 +17,9 @@ const Login = () => {
   const location = useLocation();
   const { toast } = useToast();
 
-  const from = location.state?.from?.pathname || '/';
-
   // Redirect if already logged in
   if (user) {
-    const isPoliceOrAdmin = roles.includes('police') || roles.includes('admin');
-    navigate(isPoliceOrAdmin ? '/' : '/citizen', { replace: true });
+    navigate('/landing', { replace: true });
     return null;
   }
 
@@ -47,8 +44,8 @@ const Login = () => {
       description: 'You have successfully logged in.',
     });
 
-    // Navigation will be handled by auth state change
-    navigate(from, { replace: true });
+    // Navigate to landing page which will route based on role
+    navigate('/landing', { replace: true });
   };
 
   return (
