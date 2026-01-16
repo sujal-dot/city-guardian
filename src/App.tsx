@@ -16,6 +16,8 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
+import Landing from "./pages/Landing";
+import RoleManagement from "./pages/RoleManagement";
 
 const queryClient = new QueryClient();
 
@@ -26,10 +28,13 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
+        <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            
+            {/* Landing page - routes based on role */}
+            <Route path="/landing" element={<Landing />} />
             
             {/* Protected routes - Police/Admin only */}
             <Route path="/" element={
@@ -65,6 +70,11 @@ const App = () => (
             <Route path="/admin" element={
               <ProtectedRoute requiredRoles={['police', 'admin']}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/role-management" element={
+              <ProtectedRoute requiredRoles={['admin']}>
+                <RoleManagement />
               </ProtectedRoute>
             } />
             
