@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          record_id: string
+          table_name: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id: string
+          table_name: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id?: string
+          table_name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       complaints: {
         Row: {
           complaint_type: string
@@ -23,7 +56,9 @@ export type Database = {
           latitude: number | null
           location_name: string
           longitude: number | null
+          needs_review: boolean | null
           status: Database["public"]["Enums"]["complaint_status"]
+          submitted_from_ip: string | null
           updated_at: string
           user_id: string | null
         }
@@ -35,7 +70,9 @@ export type Database = {
           latitude?: number | null
           location_name: string
           longitude?: number | null
+          needs_review?: boolean | null
           status?: Database["public"]["Enums"]["complaint_status"]
+          submitted_from_ip?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -47,7 +84,9 @@ export type Database = {
           latitude?: number | null
           location_name?: string
           longitude?: number | null
+          needs_review?: boolean | null
           status?: Database["public"]["Enums"]["complaint_status"]
+          submitted_from_ip?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -206,8 +245,10 @@ export type Database = {
           id: string
           latitude: number | null
           longitude: number | null
+          needs_review: boolean | null
           resolved_at: string | null
           status: string
+          submitted_from_ip: string | null
           user_id: string | null
         }
         Insert: {
@@ -215,8 +256,10 @@ export type Database = {
           id?: string
           latitude?: number | null
           longitude?: number | null
+          needs_review?: boolean | null
           resolved_at?: string | null
           status?: string
+          submitted_from_ip?: string | null
           user_id?: string | null
         }
         Update: {
@@ -224,8 +267,10 @@ export type Database = {
           id?: string
           latitude?: number | null
           longitude?: number | null
+          needs_review?: boolean | null
           resolved_at?: string | null
           status?: string
+          submitted_from_ip?: string | null
           user_id?: string | null
         }
         Relationships: []

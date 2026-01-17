@@ -57,9 +57,47 @@ export function useComplaints() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
+      // For anonymous submissions, use the rate-limited edge function
+      if (!user) {
+        const response = await supabase.functions.invoke('submit-anonymous', {
+          body: {
+            type: 'complaint',
+            data: {
+              description: complaint.description,
+              complaint_type: complaint.complaint_type,
+              location_name: complaint.location_name,
+              latitude: complaint.latitude,
+              longitude: complaint.longitude,
+            },
+          },
+        });
+
+        if (response.error) {
+          throw new Error(response.error.message || 'Failed to submit');
+        }
+
+        if (response.data?.error) {
+          if (response.data.error === 'Rate limit exceeded') {
+            toast.error('Too many submissions', {
+              description: response.data.message || 'Please try again later.',
+            });
+            return false;
+          }
+          throw new Error(response.data.error);
+        }
+
+        toast.success('Complaint submitted successfully!', {
+          description: 'Your complaint has been registered and will be reviewed.',
+        });
+
+        await fetchComplaints();
+        return true;
+      }
+
+      // For authenticated users, use direct insert
       const { error: insertError } = await supabase.from('complaints').insert({
         ...complaint,
-        user_id: user?.id || null,
+        user_id: user.id,
       });
 
       if (insertError) throw insertError;
