@@ -17,10 +17,50 @@ export function useSOS() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
+      // For anonymous submissions, use the rate-limited edge function
+      if (!user) {
+        const response = await supabase.functions.invoke('submit-anonymous', {
+          body: {
+            type: 'sos',
+            data: {
+              latitude: location?.latitude || null,
+              longitude: location?.longitude || null,
+            },
+          },
+        });
+
+        if (response.error) {
+          throw new Error(response.error.message || 'Failed to send SOS');
+        }
+
+        if (response.data?.error) {
+          if (response.data.error === 'Rate limit exceeded') {
+            toast.error('Too many SOS submissions', {
+              description: response.data.message || 'Please call emergency services directly: 100',
+            });
+            return false;
+          }
+          throw new Error(response.data.error);
+        }
+
+        setLastAlert({
+          id: response.data.id,
+          created_at: new Date().toISOString(),
+        });
+
+        toast.success('🚨 SOS Alert Sent!', {
+          description: 'Emergency services have been notified. Help is on the way.',
+          duration: 10000,
+        });
+
+        return true;
+      }
+
+      // For authenticated users, use direct insert
       const { data, error } = await supabase
         .from('sos_alerts')
         .insert({
-          user_id: user?.id || null,
+          user_id: user.id,
           latitude: location?.latitude || null,
           longitude: location?.longitude || null,
           status: 'active',
