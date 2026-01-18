@@ -1,9 +1,10 @@
-import { Bell, Search, User, AlertTriangle, Wifi, LogOut } from 'lucide-react';
+import { Search, User, AlertTriangle, Wifi, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { CrimeAlertPanel } from '@/components/alerts/CrimeAlertPanel';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,17 +88,8 @@ export function Header({ title, subtitle }: HeaderProps) {
           />
         </div>
 
-        {/* Alert Button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative"
-        >
-          <Bell className="h-5 w-5" />
-          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
-            3
-          </span>
-        </Button>
+        {/* Crime Alerts Panel */}
+        <CrimeAlertPanel />
 
         {/* Active Alert Indicator */}
         <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-risk-high/10 border border-risk-high/30">
