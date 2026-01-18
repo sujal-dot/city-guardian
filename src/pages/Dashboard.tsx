@@ -4,8 +4,9 @@ import { IncidentTable } from '@/components/dashboard/IncidentTable';
 import { CrimeTrendChart } from '@/components/dashboard/CrimeTrendChart';
 import { HourlyPredictionChart } from '@/components/dashboard/HourlyPredictionChart';
 import { RiskZoneList } from '@/components/dashboard/RiskZoneList';
-import { CrimeMap } from '@/components/map/CrimeMap';
+import { EnhancedCrimeMap } from '@/components/map/EnhancedCrimeMap';
 import { PatrolSuggestions } from '@/components/dashboard/PatrolSuggestions';
+import { PredictionAccuracyChart } from '@/components/dashboard/PredictionAccuracyChart';
 import { dashboardStats, incidents } from '@/data/mockData';
 import { AlertTriangle, Users, FileText, Brain } from 'lucide-react';
 
@@ -58,8 +59,11 @@ export default function Dashboard() {
           <HourlyPredictionChart />
         </div>
 
-        {/* Interactive Map */}
-        <CrimeMap />
+        {/* Interactive Heatmap */}
+        <EnhancedCrimeMap />
+
+        {/* Prediction Accuracy */}
+        <PredictionAccuracyChart />
 
         {/* Incidents & Risk Scores */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
