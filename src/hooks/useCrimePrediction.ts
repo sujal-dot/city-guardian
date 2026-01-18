@@ -106,9 +106,12 @@ export function useCrimePrediction() {
 
   const parseCSV = (text: string): CrimeRecord[] => {
     const lines = text.trim().split('\n');
-    const headers = lines[0].split(',');
+    if (lines.length <= 1) return [];
     
-    return lines.slice(1).map(line => {
+    const records: CrimeRecord[] = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
       // Handle CSV with quoted fields
       const values: string[] = [];
       let current = '';
@@ -126,17 +129,26 @@ export function useCrimePrediction() {
       }
       values.push(current.trim());
 
-      return {
-        district: values[0] || '',
-        policeStation: values[1] || '',
-        year: parseInt(values[2]) || 2024,
-        crimeType: values[8] || '',
-        latitude: parseFloat(values[9]) || 0,
-        longitude: parseFloat(values[10]) || 0,
-        address: values[7] || '',
-        registrationDate: values[4] || '',
-      };
-    }).filter(record => record.crimeType);
+      // CSV columns: District(0), Police Station(1), Year(2), FIR No.(3), Registration Date(4), 
+      // FIR No(5), Sections(6), Address(7), Crime_Section(8), Latitude(9), Longitude(10)
+      const lat = parseFloat(values[9]);
+      const lng = parseFloat(values[10]);
+      
+      if (values[8] && !isNaN(lat) && !isNaN(lng)) {
+        records.push({
+          district: values[0] || '',
+          policeStation: values[1] || '',
+          year: parseInt(values[2]) || 2024,
+          crimeType: values[8] || '',
+          latitude: lat,
+          longitude: lng,
+          address: values[7] || '',
+          registrationDate: values[4] || '',
+        });
+      }
+    }
+    
+    return records;
   };
 
   const runPrediction = useCallback(async (
