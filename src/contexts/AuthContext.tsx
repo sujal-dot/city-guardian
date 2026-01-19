@@ -7,11 +7,12 @@ interface AuthContextType {
   session: Session | null;
   roles: AppRole[];
   isLoading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ data: any; error: any }>;
+  signUp: (email: string, password: string, fullName: string, role?: AppRole) => Promise<{ data: any; error: any }>;
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<{ error: any }>;
   hasRole: (role: AppRole) => boolean;
   isPoliceOrAdmin: () => boolean;
+  validateSelectedRole: (selectedRole: AppRole) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

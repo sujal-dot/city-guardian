@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -8,8 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Shield, Loader2, UserCog, BadgeCheck, User, ChevronLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-
-type RoleType = 'admin' | 'police' | 'citizen' | null;
+import { AppRole } from '@/hooks/useAuth';
 
 const ROLES = [
   { id: 'admin' as const, label: 'Admin', icon: UserCog, description: 'System administrator access' },
@@ -21,19 +20,22 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<RoleType>(null);
-  const { signIn, user } = useAuthContext();
+  const [selectedRole, setSelectedRole] = useState<AppRole | null>(null);
+  const { signIn, user, roles, validateSelectedRole } = useAuthContext();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   // Redirect if already logged in
-  if (user) {
-    navigate('/landing', { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (user) {
+      navigate('/landing', { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedRole) return;
+    
     setIsLoading(true);
 
     const { error } = await signIn(email, password);
@@ -48,15 +50,36 @@ const Login = () => {
       return;
     }
 
-    toast({
-      title: 'Welcome back!',
-      description: `You have successfully logged in as ${selectedRole}.`,
-    });
-
-    navigate('/landing', { replace: true });
+    // Wait a moment for roles to be fetched, then validate
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
   };
 
-  const handleRoleSelect = (role: RoleType) => {
+  // Validate role after login and roles are fetched
+  useEffect(() => {
+    if (user && roles.length > 0 && selectedRole && !isLoading) {
+      if (validateSelectedRole(selectedRole)) {
+        toast({
+          title: 'Welcome back!',
+          description: `You have successfully logged in as ${selectedRole}.`,
+        });
+        navigate('/landing', { replace: true });
+      } else {
+        toast({
+          title: 'Role Mismatch',
+          description: `Your account doesn't have the "${selectedRole}" role. Your roles: ${roles.join(', ')}`,
+          variant: 'destructive',
+        });
+        // Sign out the user since role doesn't match
+        setSelectedRole(null);
+        setEmail('');
+        setPassword('');
+      }
+    }
+  }, [user, roles, selectedRole, isLoading, validateSelectedRole, toast, navigate]);
+
+  const handleRoleSelect = (role: AppRole) => {
     setSelectedRole(role);
   };
 
@@ -65,6 +88,10 @@ const Login = () => {
     setEmail('');
     setPassword('');
   };
+
+  if (user && !selectedRole) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
