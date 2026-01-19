@@ -1,15 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.heat';
 import { useCrimeData } from '@/hooks/useCrimeData';
 import { useIncidents } from '@/hooks/useIncidents';
 import { useCrimePrediction, CrimeRecord } from '@/hooks/useCrimePrediction';
-import { AlertTriangle, Clock, MapPin, Crosshair, Loader2, Layers, Eye, EyeOff, Flame } from 'lucide-react';
+import { AlertTriangle, Clock, MapPin, Crosshair, Loader2, Layers, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
+// Extend L type to include heatLayer
+declare module 'leaflet' {
+  function heatLayer(latlngs: Array<[number, number, number]>, options?: any): L.Layer;
+}
 // Thane city center coordinates
 const THANE_CENTER: [number, number] = [19.2183, 72.9781];
 const DEFAULT_ZOOM = 13;
@@ -97,10 +101,18 @@ export function EnhancedCrimeMap() {
     };
   }, []);
 
+  // Memoize and sample CSV data to prevent performance issues
+  const sampledCsvData = useMemo(() => {
+    if (csvData.length <= 500) return csvData;
+    // Sample every nth record to keep ~500 points
+    const step = Math.ceil(csvData.length / 500);
+    return csvData.filter((_, index) => index % step === 0);
+  }, [csvData]);
+
   // Update heatmap layer with CSV data
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !showCSVData) return;
+    if (!map) return;
 
     // Remove existing heatmap
     if (heatLayerRef.current) {
@@ -108,14 +120,15 @@ export function EnhancedCrimeMap() {
       heatLayerRef.current = null;
     }
 
-    if (!showHeatmap) return;
+    if (!showHeatmap || !showCSVData) return;
 
-    // Create heatmap data from CSV
+    // Create heatmap data from sampled CSV
     const heatData: [number, number, number][] = [];
     
-    // Add CSV crime data points
-    csvData.forEach((record: CrimeRecord) => {
-      if (record.latitude && record.longitude) {
+    // Add sampled CSV crime data points
+    sampledCsvData.forEach((record: CrimeRecord) => {
+      if (record.latitude && record.longitude && 
+          !isNaN(record.latitude) && !isNaN(record.longitude)) {
         heatData.push([record.latitude, record.longitude, 0.5]);
       }
     });
@@ -123,41 +136,33 @@ export function EnhancedCrimeMap() {
     // Add database crime data with intensity based on risk score
     crimeData.forEach((data) => {
       const intensity = data.risk_score / 100;
-      heatData.push([Number(data.latitude), Number(data.longitude), intensity]);
+      const lat = Number(data.latitude);
+      const lng = Number(data.longitude);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        heatData.push([lat, lng, intensity]);
+      }
     });
 
     if (heatData.length > 0) {
-      // Use CSS gradient for heatmap
-      const gradient = {
-        0.0: '#22c55e',
-        0.25: '#eab308',
-        0.5: '#f97316',
-        0.75: '#ef4444',
-        1.0: '#dc2626',
-      };
-
-      // Create custom heatmap using circles (since leaflet.heat requires specific setup)
-      const heatLayer = L.layerGroup();
-      
-      heatData.forEach(([lat, lng, intensity]) => {
-        const radius = 200 + intensity * 300;
-        const color = intensity >= 0.7 ? '#ef4444' : 
-                     intensity >= 0.5 ? '#f97316' :
-                     intensity >= 0.3 ? '#eab308' : '#22c55e';
-        
-        L.circle([lat, lng], {
-          radius,
-          color: 'transparent',
-          fillColor: color,
-          fillOpacity: 0.15 + intensity * 0.2,
-          weight: 0,
-        }).addTo(heatLayer);
+      // Use leaflet.heat for efficient heatmap rendering
+      const heatLayer = L.heatLayer(heatData, {
+        radius: 25,
+        blur: 15,
+        maxZoom: 17,
+        max: 1.0,
+        gradient: {
+          0.0: '#22c55e',
+          0.25: '#eab308',
+          0.5: '#f97316',
+          0.75: '#ef4444',
+          1.0: '#dc2626',
+        },
       });
 
       heatLayer.addTo(map);
       heatLayerRef.current = heatLayer;
     }
-  }, [csvData, crimeData, showHeatmap, showCSVData]);
+  }, [sampledCsvData, crimeData, showHeatmap, showCSVData]);
 
   // Update crime data circles
   useEffect(() => {
