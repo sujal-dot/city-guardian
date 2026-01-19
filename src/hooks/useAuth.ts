@@ -34,24 +34,33 @@ export const useAuth = () => {
   }, []);
 
   useEffect(() => {
-    // Set up auth state listener BEFORE checking session
+    // Set up auth state listener - use setTimeout to avoid deadlock
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
+        // Synchronous state update only
+        setAuthState(prev => ({
+          ...prev,
+          user: session?.user ?? null,
+          session: session ?? null,
+        }));
+
+        // Defer role fetching to avoid deadlock
         if (session?.user) {
-          const roles = await fetchUserRoles(session.user.id);
-          setAuthState({
-            user: session.user,
-            session,
-            roles,
-            isLoading: false,
-          });
+          setTimeout(() => {
+            fetchUserRoles(session.user.id).then(roles => {
+              setAuthState(prev => ({
+                ...prev,
+                roles,
+                isLoading: false,
+              }));
+            });
+          }, 0);
         } else {
-          setAuthState({
-            user: null,
-            session: null,
+          setAuthState(prev => ({
+            ...prev,
             roles: [],
             isLoading: false,
-          });
+          }));
         }
       }
     );
@@ -74,7 +83,7 @@ export const useAuth = () => {
     return () => subscription.unsubscribe();
   }, [fetchUserRoles]);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (email: string, password: string, fullName: string, role: AppRole = 'citizen') => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -82,6 +91,7 @@ export const useAuth = () => {
         emailRedirectTo: window.location.origin,
         data: {
           full_name: fullName,
+          requested_role: role, // Store requested role in metadata
         },
       },
     });
@@ -109,6 +119,10 @@ export const useAuth = () => {
     return hasRole('police') || hasRole('admin');
   };
 
+  const validateSelectedRole = (selectedRole: AppRole): boolean => {
+    return authState.roles.includes(selectedRole);
+  };
+
   return {
     ...authState,
     signUp,
@@ -116,5 +130,6 @@ export const useAuth = () => {
     signOut,
     hasRole,
     isPoliceOrAdmin,
+    validateSelectedRole,
   };
 };
