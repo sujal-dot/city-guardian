@@ -1,10 +1,11 @@
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { SOSButton } from '@/components/citizen/SOSButton';
 import { ComplaintForm } from '@/components/citizen/ComplaintForm';
-import { ComplaintTracker } from '@/components/citizen/ComplaintTracker';
+import { TrackComplaints } from '@/components/citizen/TrackComplaints';
 import { GeofenceAlerts } from '@/components/citizen/SafetyAlert';
+import { CitizenIncidentForm } from '@/components/citizen/CitizenIncidentForm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, FileText, Search, Phone } from 'lucide-react';
+import { Shield, FileText, Search, Phone, AlertTriangle } from 'lucide-react';
 
 export default function CitizenPortal() {
   return (
@@ -34,8 +35,12 @@ export default function CitizenPortal() {
         </div>
 
         {/* Tabs for Complaints */}
-        <Tabs defaultValue="file" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-secondary/50">
+        <Tabs defaultValue="incident" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 bg-secondary/50">
+            <TabsTrigger value="incident" className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Report Incident
+            </TabsTrigger>
             <TabsTrigger value="file" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               File Complaint
@@ -45,11 +50,14 @@ export default function CitizenPortal() {
               Track Complaints
             </TabsTrigger>
           </TabsList>
+          <TabsContent value="incident" className="mt-4">
+            <CitizenIncidentForm />
+          </TabsContent>
           <TabsContent value="file" className="mt-4">
             <ComplaintForm />
           </TabsContent>
           <TabsContent value="track" className="mt-4">
-            <ComplaintTracker />
+            <TrackComplaints />
           </TabsContent>
         </Tabs>
 

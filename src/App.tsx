@@ -14,7 +14,7 @@ import Patrol from "./pages/Patrol";
 import CitizenPortal from "./pages/CitizenPortal";
 import AdminDashboard from "./pages/AdminDashboard";
 import Login from "./pages/Login";
-import Signup from "./pages/Signup";
+import { Signup } from "./pages/Signup";
 import NotFound from "./pages/NotFound";
 import Landing from "./pages/Landing";
 import RoleManagement from "./pages/RoleManagement";
@@ -29,11 +29,8 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
         <Routes>
-            {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            
-            {/* Landing page - routes based on role */}
             <Route path="/landing" element={<Landing />} />
             
             {/* Protected routes - Police/Admin only */}
@@ -78,9 +75,9 @@ const App = () => (
               </ProtectedRoute>
             } />
             
-            {/* Protected routes - Authenticated users */}
+            {/* Protected routes - Citizen only */}
             <Route path="/citizen" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredRoles={['citizen']}>
                 <CitizenPortal />
               </ProtectedRoute>
             } />

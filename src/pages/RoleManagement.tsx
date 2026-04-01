@@ -4,6 +4,7 @@ import { useRoleManagement } from '@/hooks/useRoleManagement';
 import { AppRole } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -30,7 +31,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Loader2, Plus, Trash2, Shield, ShieldCheck, User } from 'lucide-react';
+import { Loader2, Plus, Trash2, Shield, ShieldCheck, User, Search, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AVAILABLE_ROLES: AppRole[] = ['citizen', 'police', 'admin'];
@@ -48,10 +49,35 @@ const roleColors: Record<AppRole, string> = {
 };
 
 export default function RoleManagement() {
-  const { users, isLoading, error, addRole, removeRole } = useRoleManagement();
+  const {
+    users,
+    isLoading,
+    error,
+    currentSearchTerm,
+    addRole,
+    removeRole,
+    searchUsers,
+    loadLatestUsers,
+  } = useRoleManagement();
   const [selectedRole, setSelectedRole] = useState<Record<string, AppRole>>({});
   const [isAddingRole, setIsAddingRole] = useState<string | null>(null);
   const [isRemovingRole, setIsRemovingRole] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+
+  const handleSearch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const query = searchText.trim();
+    if (!query) {
+      toast.error('Enter a name or user ID to search');
+      return;
+    }
+    await searchUsers(query);
+  };
+
+  const handleLoadLatest = async () => {
+    setSearchText('');
+    await loadLatestUsers();
+  };
 
   const handleAddRole = async (userId: string) => {
     const role = selectedRole[userId];
@@ -68,7 +94,10 @@ export default function RoleManagement() {
       toast.error(error.message);
     } else {
       toast.success(`Added ${role} role successfully`);
-      setSelectedRole((prev) => ({ ...prev, [userId]: undefined as any }));
+      setSelectedRole((prev) => {
+        const { [userId]: _removed, ...rest } = prev;
+        return rest;
+      });
     }
   };
 
@@ -101,6 +130,39 @@ export default function RoleManagement() {
   return (
     <DashboardLayout title="Role Management" subtitle="Manage user roles and permissions">
       <div className="space-y-6">
+        <div className="rounded-lg border bg-card p-4">
+          <form onSubmit={handleSearch} className="flex flex-col gap-3 md:flex-row md:items-center">
+            <Input
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+              placeholder="Search by name or user ID"
+              className="md:max-w-sm"
+            />
+            <div className="flex items-center gap-2">
+              <Button type="submit" disabled={isLoading}>
+                <Search className="h-4 w-4 mr-2" />
+                Search
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  void handleLoadLatest();
+                }}
+                disabled={isLoading}
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Latest 5
+              </Button>
+            </div>
+          </form>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {currentSearchTerm
+              ? `Showing search results for "${currentSearchTerm}"`
+              : 'Showing latest 5 users (newest first)'}
+          </p>
+        </div>
+
         <div className="rounded-lg border bg-card">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">

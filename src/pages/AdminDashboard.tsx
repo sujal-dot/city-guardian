@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertTriangle, FileText, Users, Bell, Loader2, MapPin, Clock } from 'lucide-react';
+import { AlertTriangle, FileText, Users, Bell, Loader2, MapPin, Clock, ExternalLink } from 'lucide-react';
 import { useSOSAlerts } from '@/hooks/useSOSAlerts';
 import { useAdminComplaints } from '@/hooks/useAdminComplaints';
 import { useAdminIncidents } from '@/hooks/useAdminIncidents';
@@ -100,6 +100,19 @@ const AdminDashboard = () => {
         return 'outline';
       default:
         return 'default';
+    }
+  };
+
+  const getSourceBadgeClass = (source: string) => {
+    switch (source) {
+      case 'citizen':
+        return 'bg-blue-500/10 text-blue-600 border-blue-500/30';
+      case 'admin':
+        return 'bg-purple-500/10 text-purple-600 border-purple-500/30';
+      case 'system':
+        return 'bg-amber-500/10 text-amber-600 border-amber-500/30';
+      default:
+        return 'bg-slate-500/10 text-slate-600 border-slate-500/30';
     }
   };
 
@@ -200,10 +213,21 @@ const AdminDashboard = () => {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {alert.latitude && alert.longitude ? (
-                              <div className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4 text-muted-foreground" />
-                                {alert.latitude.toFixed(4)}, {alert.longitude.toFixed(4)}
+                            {alert.latitude !== null && alert.longitude !== null ? (
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                                  {alert.latitude.toFixed(6)}, {alert.longitude.toFixed(6)}
+                                </div>
+                                <a
+                                  href={`https://www.google.com/maps?q=${alert.latitude},${alert.longitude}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                >
+                                  Open in Maps
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
                               </div>
                             ) : (
                               <span className="text-muted-foreground">No location</span>
@@ -332,6 +356,7 @@ const AdminDashboard = () => {
                         <TableHead>Date</TableHead>
                         <TableHead>Title</TableHead>
                         <TableHead>Type</TableHead>
+                        <TableHead>Source</TableHead>
                         <TableHead>Severity</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Assigned To</TableHead>
@@ -349,6 +374,14 @@ const AdminDashboard = () => {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{incident.incident_type}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={getSourceBadgeClass(incident.incident_source)}
+                            >
+                              {incident.reporter_label}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant={getSeverityBadgeVariant(incident.severity)}>

@@ -1,6 +1,9 @@
+import { useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { IncidentTable } from '@/components/dashboard/IncidentTable';
-import { incidents } from '@/data/mockData';
+import { Incident as IncidentUi } from '@/data/mockData';
+import { useIncidents } from '@/hooks/useIncidents';
+import { NewIncidentDialog } from '@/components/incidents/NewIncidentDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -10,9 +13,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Filter, Plus, Download } from 'lucide-react';
+import { Search, Download } from 'lucide-react';
 
 export default function Incidents() {
+  const { incidents, isLoading, error, refetch } = useIncidents();
+
+  const mappedIncidents = useMemo<IncidentUi[]>(
+    () =>
+      incidents.map((incident) => ({
+        id: incident.id,
+        type: incident.incident_type,
+        location: incident.location_name,
+        coordinates: {
+          lat: Number(incident.latitude),
+          lng: Number(incident.longitude),
+        },
+        timestamp: incident.created_at,
+        status:
+          incident.status === 'reported'
+            ? 'active'
+            : incident.status === 'closed'
+            ? 'resolved'
+            : incident.status,
+        riskLevel: incident.severity,
+        description: incident.description || '',
+        assignedOfficer: incident.assigned_officer || undefined,
+      })),
+    [incidents]
+  );
+
   return (
     <DashboardLayout
       title="Incident Management"
@@ -58,15 +87,24 @@ export default function Incidents() {
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              New Incident
-            </Button>
+            <NewIncidentDialog onCreated={refetch} />
           </div>
         </div>
 
+        {error ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Failed to load incidents: {error}
+          </div>
+        ) : null}
+
         {/* Incidents Table */}
-        <IncidentTable incidents={incidents} />
+        {isLoading && mappedIncidents.length === 0 ? (
+          <div className="card-command p-6 text-sm text-muted-foreground">
+            Loading incidents...
+          </div>
+        ) : (
+          <IncidentTable incidents={mappedIncidents} />
+        )}
       </div>
     </DashboardLayout>
   );

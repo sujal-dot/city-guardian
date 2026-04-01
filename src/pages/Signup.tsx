@@ -5,33 +5,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Loader2, UserCog, BadgeCheck, User, ChevronLeft, AlertTriangle } from 'lucide-react';
+import { Shield, Loader2, BadgeCheck, User, ChevronLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { AppRole } from '@/hooks/useAuth';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { isValidEmailFormat, normalizeEmail } from '@/lib/email';
 
 const ROLES = [
   { 
     id: 'citizen' as const, 
     label: 'Citizen', 
     icon: User, 
-    description: 'Public citizen access',
-    requiresApproval: false 
+    description: 'Public citizen access'
   },
   { 
     id: 'police' as const, 
     label: 'Police', 
     icon: BadgeCheck, 
-    description: 'Law enforcement officer',
-    requiresApproval: true 
-  },
-  { 
-    id: 'admin' as const, 
-    label: 'Admin', 
-    icon: UserCog, 
-    description: 'System administrator access',
-    requiresApproval: true 
+    description: 'Law enforcement officer'
   },
 ];
 
@@ -39,11 +30,13 @@ const Signup = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<AppRole | null>(null);
   const { signUp, user } = useAuthContext();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isEmailValid = !email || isValidEmailFormat(email);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -55,6 +48,28 @@ const Signup = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRole) return;
+
+    const normalizedEmail = normalizeEmail(email);
+    if (!isValidEmailFormat(normalizedEmail)) {
+      setEmailError('Enter a valid email address (example: name@example.com).');
+      toast({
+        title: 'Invalid Email',
+        description: 'Please enter a valid email address format.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setEmailError('');
+
+    if (selectedRole === 'admin') {
+      toast({
+        title: 'Admin signup restricted',
+        description: 'New admin accounts can only be assigned by an existing admin.',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     setIsLoading(true);
 
@@ -68,7 +83,7 @@ const Signup = () => {
       return;
     }
 
-    const { error } = await signUp(email, password, fullName, selectedRole);
+    const { error } = await signUp(normalizedEmail, password, fullName, selectedRole);
 
     if (error) {
       toast({
@@ -80,19 +95,10 @@ const Signup = () => {
       return;
     }
 
-    const roleInfo = ROLES.find(r => r.id === selectedRole);
-    
-    if (roleInfo?.requiresApproval) {
-      toast({
-        title: 'Account Created!',
-        description: `Your ${selectedRole} account requires admin approval. You'll be notified once approved.`,
-      });
-    } else {
-      toast({
-        title: 'Account Created!',
-        description: 'Welcome to the Crime Prediction & Prevention System.',
-      });
-    }
+    toast({
+      title: 'Account Created!',
+      description: `Your account was created with the ${selectedRole} role.`,
+    });
 
     navigate('/landing', { replace: true });
   };
@@ -104,11 +110,10 @@ const Signup = () => {
   const handleBackToRoles = () => {
     setSelectedRole(null);
     setEmail('');
+    setEmailError('');
     setPassword('');
     setFullName('');
   };
-
-  const currentRoleInfo = ROLES.find(r => r.id === selectedRole);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
@@ -150,14 +155,12 @@ const Signup = () => {
                       <p className="font-semibold">{role.label}</p>
                       <p className="text-sm text-muted-foreground">{role.description}</p>
                     </div>
-                    {role.requiresApproval && (
-                      <span className="text-xs bg-amber-500/10 text-amber-500 px-2 py-1 rounded">
-                        Requires Approval
-                      </span>
-                    )}
                   </button>
                 );
               })}
+              <p className="text-xs text-center text-muted-foreground">
+                Admin accounts are restricted and can only be assigned by an existing admin.
+              </p>
             </div>
           ) : (
             /* Signup Form */
@@ -172,25 +175,13 @@ const Signup = () => {
                 Change Role
               </Button>
 
-              {currentRoleInfo?.requiresApproval && (
-                <Alert className="bg-amber-500/10 border-amber-500/20">
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  <AlertDescription className="text-amber-200">
-                    {selectedRole === 'police' 
-                      ? 'Police accounts require admin verification. You will start with citizen access until approved.'
-                      : 'Admin accounts require verification. You will start with citizen access until approved.'
-                    }
-                  </AlertDescription>
-                </Alert>
-              )}
-
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Full Name</Label>
                   <Input
                     id="fullName"
                     type="text"
-                    placeholder="John Doe"
+                    placeholder=""
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
@@ -204,10 +195,34 @@ const Signup = () => {
                     type="email"
                     placeholder="you@example.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      const nextEmail = e.target.value;
+                      setEmail(nextEmail);
+                      if (emailError) {
+                        setEmailError(
+                          isValidEmailFormat(nextEmail)
+                            ? ''
+                            : 'Enter a valid email address (example: name@example.com).'
+                        );
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!email) return;
+                      setEmailError(
+                        isValidEmailFormat(email)
+                          ? ''
+                          : 'Enter a valid email address (example: name@example.com).'
+                      );
+                    }}
+                    pattern="^[^\s@]+@[^\s@]+\.[^\s@]{2,}$"
+                    title="Enter a valid email address (example: name@example.com)."
+                    aria-invalid={!isEmailValid}
                     required
                     disabled={isLoading}
                   />
+                  {emailError ? (
+                    <p className="text-xs text-destructive">{emailError}</p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
@@ -225,7 +240,7 @@ const Signup = () => {
                     Must be at least 6 characters
                   </p>
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" className="w-full" disabled={isLoading || !isEmailValid}>
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -252,3 +267,4 @@ const Signup = () => {
 };
 
 export default Signup;
+export { Signup };

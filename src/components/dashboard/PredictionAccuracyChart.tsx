@@ -13,8 +13,9 @@ import {
   ComposedChart,
   Bar,
 } from 'recharts';
-import { TrendingUp, Target, BarChart3, Calendar } from 'lucide-react';
+import { TrendingUp, Target, BarChart3, Calendar, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePredictionAccuracy } from '@/hooks/usePredictionAccuracy';
 
 // Generate mock historical comparison data
 const generateHistoricalData = () => {
@@ -70,9 +71,14 @@ const generateZoneAccuracy = () => {
 };
 
 export function PredictionAccuracyChart() {
-  const historicalData = useMemo(() => generateHistoricalData(), []);
-  const weeklyData = useMemo(() => generateWeeklyData(), []);
-  const zoneAccuracy = useMemo(() => generateZoneAccuracy(), []);
+  const { monthlyData, weeklyData, zoneAccuracy, isLoading } = usePredictionAccuracy();
+  const fallbackHistoricalData = useMemo(() => generateHistoricalData(), []);
+  const fallbackWeeklyData = useMemo(() => generateWeeklyData(), []);
+  const fallbackZoneAccuracy = useMemo(() => generateZoneAccuracy(), []);
+
+  const historicalData = monthlyData.length > 0 ? monthlyData : fallbackHistoricalData;
+  const weeklyTrendData = weeklyData.length > 0 ? weeklyData : fallbackWeeklyData;
+  const zoneAccuracyData = zoneAccuracy.length > 0 ? zoneAccuracy : fallbackZoneAccuracy;
 
   const overallAccuracy = useMemo(() => {
     const total = historicalData.reduce((acc, d) => acc + d.accuracy, 0);
@@ -91,8 +97,15 @@ export function PredictionAccuracyChart() {
               <Target className="h-5 w-5 text-primary" />
               Prediction Accuracy Analysis
             </h3>
-            <p className="text-sm text-muted-foreground">
-              Historical comparison of predictions vs actual incidents
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Loading historical data...
+                </>
+              ) : (
+                'Historical comparison of predictions vs actual incidents'
+              )}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -213,7 +226,7 @@ export function PredictionAccuracyChart() {
           <h4 className="text-sm font-medium text-foreground mb-4">This Month's Weekly Trend</h4>
           <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyData}>
+              <AreaChart data={weeklyTrendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="week" fontSize={10} stroke="hsl(var(--muted-foreground))" />
                 <YAxis fontSize={10} stroke="hsl(var(--muted-foreground))" />
@@ -252,7 +265,7 @@ export function PredictionAccuracyChart() {
         <div>
           <h4 className="text-sm font-medium text-foreground mb-4">Accuracy by Zone</h4>
           <div className="space-y-2">
-            {zoneAccuracy.slice(0, 5).map((zone) => (
+            {zoneAccuracyData.slice(0, 5).map((zone) => (
               <div key={zone.zone} className="flex items-center gap-3">
                 <span className="text-xs text-muted-foreground w-24 truncate">{zone.zone}</span>
                 <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">

@@ -14,8 +14,9 @@ export const ProtectedRoute = ({
   requiredRoles = [],
   requireAuth = true 
 }: ProtectedRouteProps) => {
-  const { user, roles, isLoading } = useAuthContext();
+  const { user, effectiveRoles, isLoading } = useAuthContext();
   const location = useLocation();
+  const demoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
   if (isLoading) {
     return (
@@ -25,18 +26,18 @@ export const ProtectedRoute = ({
     );
   }
 
-  if (requireAuth && !user) {
+  if (!demoMode && requireAuth && !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (requiredRoles.length > 0) {
-    const hasRequiredRole = requiredRoles.some((role) => roles.includes(role));
+    const hasRequiredRole = requiredRoles.some((role) => effectiveRoles.includes(role));
     if (!hasRequiredRole) {
       // Redirect citizens to citizen portal, others to login
-      if (roles.includes('citizen')) {
+      if (effectiveRoles.includes('citizen')) {
         return <Navigate to="/citizen" replace />;
       }
-      return <Navigate to="/login" replace />;
+      return demoMode ? <Navigate to="/" replace /> : <Navigate to="/login" replace />;
     }
   }
 

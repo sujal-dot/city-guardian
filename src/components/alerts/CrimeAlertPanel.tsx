@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Bell, AlertTriangle, MapPin, Clock, X, CheckCheck, Trash2 } from 'lucide-react';
-import { useCrimeAlerts, CrimeAlert } from '@/hooks/useCrimeAlerts';
+import { Bell, AlertTriangle, MapPin, Clock, CheckCheck, Trash2 } from 'lucide-react';
+import { CrimeAlert } from '@/hooks/useCrimeAlerts';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -96,6 +96,9 @@ function AlertItem({ alert, onMarkRead }: AlertItemProps) {
               <p className="text-xs text-muted-foreground">
                 Risk Score: {alert.matchedHotspot.riskScore}/100
               </p>
+              <p className="text-[10px] text-muted-foreground">
+                Radius: {alert.matchedHotspot.radiusMeters}m • Source: {alert.matchedHotspot.source}
+              </p>
             </div>
           </div>
         </div>
@@ -107,8 +110,21 @@ function AlertItem({ alert, onMarkRead }: AlertItemProps) {
   );
 }
 
-export function CrimeAlertPanel() {
-  const { alerts, unreadCount, markAsRead, markAllAsRead, clearAlerts } = useCrimeAlerts();
+interface CrimeAlertPanelProps {
+  alerts: CrimeAlert[];
+  unreadCount: number;
+  markAsRead: (id: string) => void;
+  markAllAsRead: () => void;
+  clearAlerts: () => void;
+}
+
+export function CrimeAlertPanel({
+  alerts,
+  unreadCount,
+  markAsRead,
+  markAllAsRead,
+  clearAlerts,
+}: CrimeAlertPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (

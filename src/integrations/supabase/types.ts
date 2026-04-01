@@ -170,6 +170,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          incident_source: string
           incident_type: string
           latitude: number
           location_name: string
@@ -185,6 +186,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          incident_source?: string
           incident_type: string
           latitude: number
           location_name: string
@@ -200,6 +202,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          incident_source?: string
           incident_type?: string
           latitude?: number
           location_name?: string

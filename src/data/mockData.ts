@@ -65,7 +65,14 @@ const thaneLocations = [
   { name: 'Mumbra', lat: 19.1734, lng: 73.0245 },
   { name: 'Diva', lat: 19.1856, lng: 73.0312 },
   { name: 'Vartak Nagar', lat: 19.2134, lng: 72.9878 },
+  { name: 'Kausa', lat: 19.1712, lng: 73.0306 },
+  { name: 'Amrut Nagar', lat: 19.1679, lng: 73.0264 },
+  { name: 'Kasarvadavali', lat: 19.2738, lng: 72.9645 },
 ];
+
+export const zoneCoordinates = Object.fromEntries(
+  thaneLocations.map((location) => [location.name, { lat: location.lat, lng: location.lng }])
+) as Record<string, { lat: number; lng: number }>;
 
 export const incidents: Incident[] = [
   {

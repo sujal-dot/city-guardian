@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-interface Incident {
+export interface Incident {
   id: string;
   title: string;
   description: string | null;
+  incident_source: string;
   incident_type: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
   status: 'reported' | 'investigating' | 'resolved' | 'closed';

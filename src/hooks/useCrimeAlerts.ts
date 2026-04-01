@@ -4,7 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export interface CrimeAlert {
   id: string;
-  incidentId: string;
+  incidentId: string | null;
   incidentTitle: string;
   incidentType: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
@@ -15,134 +15,130 @@ export interface CrimeAlert {
     zone: string;
     riskScore: number;
     distance: number;
+    radiusMeters: number;
+    source: 'prediction' | 'geofence';
   };
   timestamp: string;
   isRead: boolean;
 }
 
-interface Hotspot {
-  zone: string;
+interface CrimeAlertRow {
+  id: string;
+  incident_id: string | null;
+  incident_title: string;
+  incident_type: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  location_name: string;
   latitude: number;
   longitude: number;
-  riskScore: number;
+  matched_zone: string;
+  matched_risk_score: number;
+  matched_distance_meters: number;
+  matched_radius_meters: number;
+  source: 'prediction' | 'geofence';
+  created_at: string;
+  is_read: boolean;
 }
 
-// Calculate distance between two coordinates using Haversine formula (returns km)
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-};
+const mapAlertRow = (row: CrimeAlertRow): CrimeAlert => ({
+  id: row.id,
+  incidentId: row.incident_id,
+  incidentTitle: row.incident_title,
+  incidentType: row.incident_type,
+  severity: row.severity,
+  location: row.location_name,
+  latitude: Number(row.latitude),
+  longitude: Number(row.longitude),
+  matchedHotspot: {
+    zone: row.matched_zone,
+    riskScore: Number(row.matched_risk_score),
+    distance: Number(row.matched_distance_meters),
+    radiusMeters: Number(row.matched_radius_meters),
+    source: row.source,
+  },
+  timestamp: row.created_at,
+  isRead: row.is_read,
+});
 
-// Alert radius threshold in km
-const ALERT_RADIUS_KM = 2;
-
-export function useCrimeAlerts() {
+export function useCrimeAlerts({ enabled = true }: { enabled?: boolean } = {}) {
   const [alerts, setAlerts] = useState<CrimeAlert[]>([]);
-  const [hotspots, setHotspots] = useState<Hotspot[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const { toast } = useToast();
 
-  // Load hotspots from high_risk_zones table
-  useEffect(() => {
-    const loadHotspots = async () => {
-      const { data, error } = await supabase
-        .from('high_risk_zones')
-        .select('*')
-        .eq('is_active', true);
+  const fetchAlerts = useCallback(async () => {
+    if (!enabled) return;
 
-      if (error) {
-        console.error('Failed to load hotspots:', error);
-        return;
-      }
+    const { data, error } = await supabase
+      .from('crime_alerts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-      setHotspots(data.map(zone => ({
-        zone: zone.zone_name,
-        latitude: Number(zone.latitude),
-        longitude: Number(zone.longitude),
-        riskScore: zone.risk_level === 'critical' ? 85 : zone.risk_level === 'high' ? 70 : 50,
-      })));
-    };
-
-    loadHotspots();
-  }, []);
-
-  // Check if incident matches any hotspot
-  const checkIncidentAgainstHotspots = useCallback((incident: {
-    id: string;
-    title: string;
-    incident_type: string;
-    severity: 'low' | 'medium' | 'high' | 'critical';
-    location_name: string;
-    latitude: number;
-    longitude: number;
-    created_at: string;
-  }) => {
-    for (const hotspot of hotspots) {
-      const distance = calculateDistance(
-        Number(incident.latitude),
-        Number(incident.longitude),
-        hotspot.latitude,
-        hotspot.longitude
-      );
-
-      if (distance <= ALERT_RADIUS_KM) {
-        const newAlert: CrimeAlert = {
-          id: `alert-${incident.id}-${Date.now()}`,
-          incidentId: incident.id,
-          incidentTitle: incident.title,
-          incidentType: incident.incident_type,
-          severity: incident.severity,
-          location: incident.location_name,
-          latitude: Number(incident.latitude),
-          longitude: Number(incident.longitude),
-          matchedHotspot: {
-            zone: hotspot.zone,
-            riskScore: hotspot.riskScore,
-            distance: Math.round(distance * 1000), // Convert to meters
-          },
-          timestamp: new Date().toISOString(),
-          isRead: false,
-        };
-
-        setAlerts(prev => [newAlert, ...prev].slice(0, 50)); // Keep last 50 alerts
-        setUnreadCount(prev => prev + 1);
-
-        // Show toast notification
-        toast({
-          title: '🚨 Hotspot Alert!',
-          description: `New ${incident.severity} incident "${incident.title}" detected ${Math.round(distance * 1000)}m from ${hotspot.zone} hotspot`,
-          variant: 'destructive',
-        });
-
-        return newAlert;
-      }
+    if (error) {
+      console.error('Failed to load crime alerts:', error);
+      return;
     }
-    return null;
-  }, [hotspots, toast]);
 
-  // Subscribe to real-time incident changes
+    const mapped = (data || []).map((row) => mapAlertRow(row as CrimeAlertRow));
+    setAlerts(mapped);
+    setUnreadCount(mapped.filter((alert) => !alert.isRead).length);
+  }, [enabled]);
+
   useEffect(() => {
-    if (hotspots.length === 0) return;
+    if (!enabled) {
+      setAlerts([]);
+      setUnreadCount(0);
+      return;
+    }
+    fetchAlerts();
+  }, [enabled, fetchAlerts]);
+
+  useEffect(() => {
+    if (!enabled) return;
 
     const channel = supabase
-      .channel('incident_alerts')
+      .channel('crime_alerts_feed')
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'incidents',
+          table: 'crime_alerts',
         },
         (payload) => {
-          const newIncident = payload.new as any;
-          checkIncidentAgainstHotspots(newIncident);
+          const newAlert = mapAlertRow(payload.new as CrimeAlertRow);
+          setAlerts((prev) => [newAlert, ...prev].slice(0, 50));
+          if (!newAlert.isRead) {
+            setUnreadCount((prev) => prev + 1);
+          }
+
+          toast({
+            title: '🚨 Hotspot Alert!',
+            description: `New ${newAlert.severity} incident "${newAlert.incidentTitle}" detected ${newAlert.matchedHotspot.distance}m from ${newAlert.matchedHotspot.zone}`,
+            variant: 'destructive',
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'crime_alerts',
+        },
+        () => {
+          fetchAlerts();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'crime_alerts',
+        },
+        () => {
+          fetchAlerts();
         }
       )
       .subscribe();
@@ -150,26 +146,66 @@ export function useCrimeAlerts() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [hotspots, checkIncidentAgainstHotspots]);
+  }, [enabled, fetchAlerts, toast]);
 
-  const markAsRead = useCallback((alertId: string) => {
-    setAlerts(prev => 
-      prev.map(alert => 
-        alert.id === alertId ? { ...alert, isRead: true } : alert
-      )
+  const markAsRead = useCallback(async (alertId: string) => {
+    const { error } = await supabase
+      .from('crime_alerts')
+      .update({ is_read: true })
+      .eq('id', alertId);
+
+    if (error) {
+      toast({
+        title: 'Failed to update alert',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setAlerts((prev) =>
+      prev.map((alert) => (alert.id === alertId ? { ...alert, isRead: true } : alert))
     );
-    setUnreadCount(prev => Math.max(0, prev - 1));
-  }, []);
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+  }, [toast]);
 
-  const markAllAsRead = useCallback(() => {
-    setAlerts(prev => prev.map(alert => ({ ...alert, isRead: true })));
+  const markAllAsRead = useCallback(async () => {
+    const { error } = await supabase
+      .from('crime_alerts')
+      .update({ is_read: true })
+      .eq('is_read', false);
+
+    if (error) {
+      toast({
+        title: 'Failed to update alerts',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setAlerts((prev) => prev.map((alert) => ({ ...alert, isRead: true })));
     setUnreadCount(0);
-  }, []);
+  }, [toast]);
 
-  const clearAlerts = useCallback(() => {
+  const clearAlerts = useCallback(async () => {
+    const { error } = await supabase
+      .from('crime_alerts')
+      .delete()
+      .not('id', 'is', null);
+
+    if (error) {
+      toast({
+        title: 'Failed to clear alerts',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setAlerts([]);
     setUnreadCount(0);
-  }, []);
+  }, [toast]);
 
   return {
     alerts,
@@ -177,6 +213,5 @@ export function useCrimeAlerts() {
     markAsRead,
     markAllAsRead,
     clearAlerts,
-    hotspots,
   };
 }

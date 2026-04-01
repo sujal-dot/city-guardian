@@ -5,6 +5,7 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { CrimeAlertPanel } from '@/components/alerts/CrimeAlertPanel';
+import { useCrimeAlerts } from '@/hooks/useCrimeAlerts';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,9 +21,39 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
-  const { user, signOut, roles } = useAuthContext();
+  const { user, signOut, effectiveRoles } = useAuthContext();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const canViewAlerts = effectiveRoles.includes('police') || effectiveRoles.includes('admin');
+  const crimeAlerts = useCrimeAlerts({ enabled: canViewAlerts });
+  const roleLabel =
+    effectiveRoles.length > 0
+      ? effectiveRoles
+          .map((role) => role.charAt(0).toUpperCase() + role.slice(1))
+          .join(' / ')
+      : 'User';
+  const fallbackNameByRole = effectiveRoles.includes('admin')
+    ? 'Administrator'
+    : effectiveRoles.includes('police')
+    ? 'Police Officer'
+    : effectiveRoles.includes('citizen')
+    ? 'Citizen User'
+    : 'User';
+  const metadataName =
+    typeof user?.user_metadata?.full_name === 'string'
+      ? user.user_metadata.full_name.trim()
+      : typeof user?.user_metadata?.name === 'string'
+      ? user.user_metadata.name.trim()
+      : '';
+  const emailHandle = user?.email ? user.email.split('@')[0].replace(/[._-]+/g, ' ') : '';
+  const displayName = (metadataName || emailHandle || fallbackNameByRole)
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+  const isCitizenUser = effectiveRoles.includes('citizen');
+  const primaryIdentityLabel = displayName;
+  const secondaryIdentityLabel = isCitizenUser ? user?.email : null;
 
   const currentTime = new Date().toLocaleTimeString('en-IN', {
     hour: '2-digit',
@@ -43,16 +74,16 @@ export function Header({ title, subtitle }: HeaderProps) {
     if (error) {
       toast({
         title: 'Logout Failed',
-        description: error.message,
+        description: `${error.message}. You have been signed out locally.`,
         variant: 'destructive',
       });
-      return;
+    } else {
+      toast({
+        title: 'Logged Out',
+        description: 'You have been logged out successfully.',
+      });
     }
-    toast({
-      title: 'Logged Out',
-      description: 'You have been logged out successfully.',
-    });
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   return (
@@ -89,13 +120,25 @@ export function Header({ title, subtitle }: HeaderProps) {
         </div>
 
         {/* Crime Alerts Panel */}
-        <CrimeAlertPanel />
+        {canViewAlerts && (
+          <>
+            <CrimeAlertPanel
+              alerts={crimeAlerts.alerts}
+              unreadCount={crimeAlerts.unreadCount}
+              markAsRead={crimeAlerts.markAsRead}
+              markAllAsRead={crimeAlerts.markAllAsRead}
+              clearAlerts={crimeAlerts.clearAlerts}
+            />
 
-        {/* Active Alert Indicator */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-risk-high/10 border border-risk-high/30">
-          <AlertTriangle className="h-4 w-4 text-risk-high" />
-          <span className="text-xs font-medium text-risk-high">2 Active Alerts</span>
-        </div>
+            {/* Active Alert Indicator */}
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-risk-high/10 border border-risk-high/30">
+              <AlertTriangle className="h-4 w-4 text-risk-high" />
+              <span className="text-xs font-medium text-risk-high">
+                {crimeAlerts.unreadCount > 0 ? `${crimeAlerts.unreadCount} Active Alerts` : 'No Active Alerts'}
+              </span>
+            </div>
+          </>
+        )}
 
         {/* User Menu */}
         <DropdownMenu>
@@ -107,10 +150,16 @@ export function Header({ title, subtitle }: HeaderProps) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{user?.email}</p>
-                <p className="text-xs leading-none text-muted-foreground capitalize">
-                  {roles.join(', ') || 'User'}
+                <p className="text-sm font-medium leading-none">{primaryIdentityLabel}</p>
+                {secondaryIdentityLabel ? (
+                  <p className="text-xs leading-none text-muted-foreground/80">{secondaryIdentityLabel}</p>
+                ) : null}
+                <p className="text-xs leading-none text-muted-foreground">
+                  {roleLabel}
                 </p>
+                {user?.email && !secondaryIdentityLabel && primaryIdentityLabel !== user.email ? (
+                  <p className="text-xs leading-none text-muted-foreground/80">{user.email}</p>
+                ) : null}
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

@@ -21,6 +21,13 @@ const statusStyles = {
 };
 
 export function IncidentTable({ incidents }: IncidentTableProps) {
+  const formatIncidentId = (id: string) => {
+    if (id.startsWith('INC-')) {
+      return id;
+    }
+    return `INC-${id.slice(0, 8).toUpperCase()}`;
+  };
+
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-IN', {
@@ -66,7 +73,7 @@ export function IncidentTable({ incidents }: IncidentTableProps) {
             {incidents.map((incident) => (
               <tr key={incident.id} className="hover:bg-secondary/20 cursor-pointer transition-colors">
                 <td>
-                  <span className="font-mono text-sm text-primary">{incident.id}</span>
+                  <span className="font-mono text-sm text-primary">{formatIncidentId(incident.id)}</span>
                 </td>
                 <td>
                   <span className="font-medium">{incident.type}</span>
@@ -119,6 +126,11 @@ export function IncidentTable({ incidents }: IncidentTableProps) {
             ))}
           </tbody>
         </table>
+        {incidents.length === 0 ? (
+          <div className="px-6 py-8 text-center text-sm text-muted-foreground">
+            No incidents reported yet.
+          </div>
+        ) : null}
       </div>
     </div>
   );

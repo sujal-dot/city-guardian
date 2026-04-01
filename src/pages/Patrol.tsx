@@ -1,9 +1,30 @@
+import { useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PatrolSuggestions } from '@/components/dashboard/PatrolSuggestions';
 import { Button } from '@/components/ui/button';
 import { Route, Users, Clock, Target, RefreshCw } from 'lucide-react';
+import { PatrolRoutesMap } from '@/components/map/PatrolRoutesMap';
+import { PatrolSuggestion, zoneCoordinates } from '@/data/mockData';
 
 export default function Patrol() {
+  const [selectedSuggestion, setSelectedSuggestion] = useState<PatrolSuggestion | null>(null);
+
+  const routeStops = useMemo(() => {
+    if (!selectedSuggestion) return undefined;
+    const stops = selectedSuggestion.zones
+      .map((zone) => {
+        const coords = zoneCoordinates[zone];
+        if (!coords) return null;
+        return { name: zone, lat: coords.lat, lng: coords.lng };
+      })
+      .filter(Boolean) as { name: string; lat: number; lng: number }[];
+    return stops.length > 0 ? stops : undefined;
+  }, [selectedSuggestion]);
+
+  const handleSelectSuggestion = (suggestion: PatrolSuggestion) => {
+    setSelectedSuggestion((current) => (current?.id === suggestion.id ? null : suggestion));
+  };
+
   return (
     <DashboardLayout
       title="AI Patrol Suggestions"
@@ -59,7 +80,19 @@ export default function Patrol() {
         </div>
 
         {/* Patrol Suggestions */}
-        <PatrolSuggestions />
+        <PatrolSuggestions
+          onSelectSuggestion={handleSelectSuggestion}
+          selectedSuggestionId={selectedSuggestion?.id ?? null}
+          onGenerateNew={() => setSelectedSuggestion(null)}
+        />
+
+        {/* Patrol Routes Map (from Heatmap high-risk zones) */}
+        <PatrolRoutesMap
+          routeStops={routeStops}
+          routeLabel={selectedSuggestion?.route}
+          routeWindow={selectedSuggestion ? `${selectedSuggestion.startTime} - ${selectedSuggestion.endTime}` : undefined}
+          onClearRoute={() => setSelectedSuggestion(null)}
+        />
 
         {/* Quick Actions */}
         <div className="flex justify-center gap-4">

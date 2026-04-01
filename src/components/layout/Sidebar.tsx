@@ -16,8 +16,16 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { AppRole } from '@/hooks/useAuth';
 
-const navItems = [
+type NavItem = {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  path: string;
+  roles: AppRole[];
+};
+
+const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/', roles: ['police', 'admin'] },
   { icon: FileWarning, label: 'Incidents', path: '/incidents', roles: ['police', 'admin'] },
   { icon: Brain, label: 'Crime Prediction', path: '/prediction', roles: ['police', 'admin'] },
@@ -26,17 +34,17 @@ const navItems = [
   { icon: Route, label: 'AI Patrol', path: '/patrol', roles: ['police', 'admin'] },
   { icon: Settings, label: 'Admin', path: '/admin', roles: ['police', 'admin'] },
   { icon: UserCog, label: 'Role Management', path: '/role-management', roles: ['admin'] },
-  { icon: Users, label: 'Citizen Portal', path: '/citizen', roles: ['citizen', 'police', 'admin'] },
+  { icon: Users, label: 'Citizen Portal', path: '/citizen', roles: ['citizen'] },
 ];
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { roles } = useAuthContext();
+  const { effectiveRoles } = useAuthContext();
 
   // Filter nav items based on user roles
   const filteredNavItems = navItems.filter((item) =>
-    item.roles.some((role) => roles.includes(role as any))
+    item.roles.some((role) => effectiveRoles.includes(role))
   );
 
   return (

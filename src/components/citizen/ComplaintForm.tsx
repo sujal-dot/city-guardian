@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -34,11 +34,13 @@ export function ComplaintForm() {
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [complaintType, setComplaintType] = useState('');
   const [description, setDescription] = useState('');
+  const hasAttemptedAutoLocation = useRef(false);
 
   const { submitComplaint, isLoading } = useComplaints();
   const { getCurrentPosition } = useGeolocation();
 
-  const handleGetLocation = async () => {
+  const handleGetLocation = useCallback(async (options?: { silent?: boolean }) => {
+    const { silent = false } = options ?? {};
     setIsGettingLocation(true);
 
     try {
@@ -52,11 +54,19 @@ export function ComplaintForm() {
       // For now, we'll just show coordinates
     } catch (error) {
       console.error('Error getting location:', error);
-      setLocation('Unable to get location. Please enter manually.');
+      if (!silent) {
+        setLocation('Unable to get location. Please enter manually.');
+      }
     } finally {
       setIsGettingLocation(false);
     }
-  };
+  }, [getCurrentPosition]);
+
+  useEffect(() => {
+    if (hasAttemptedAutoLocation.current) return;
+    hasAttemptedAutoLocation.current = true;
+    void handleGetLocation({ silent: true });
+  }, [handleGetLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +95,7 @@ export function ComplaintForm() {
     setDescription('');
     setLocation('');
     setCoordinates(null);
+    void handleGetLocation({ silent: true });
   };
 
   if (isSubmitted) {
@@ -164,7 +175,9 @@ export function ComplaintForm() {
             <Button
               type="button"
               variant="outline"
-              onClick={handleGetLocation}
+              onClick={() => {
+                void handleGetLocation();
+              }}
               disabled={isGettingLocation}
             >
               {isGettingLocation ? (

@@ -57,37 +57,52 @@ export function useComplaints() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      // For anonymous submissions, use the rate-limited edge function
-      if (!user) {
-        const response = await supabase.functions.invoke('submit-anonymous', {
-          body: {
-            type: 'complaint',
-            data: {
-              description: complaint.description,
-              complaint_type: complaint.complaint_type,
-              location_name: complaint.location_name,
-              latitude: complaint.latitude,
-              longitude: complaint.longitude,
-            },
-          },
+      const insertDirectly = async (userId: string | null) => {
+        const { error: insertError } = await supabase.from('complaints').insert({
+          ...complaint,
+          user_id: userId,
         });
 
-        if (response.error) {
-          throw new Error(response.error.message || 'Failed to submit');
-        }
+        if (insertError) throw insertError;
+      };
 
-        if (response.data?.error) {
-          if (response.data.error === 'Rate limit exceeded') {
-            toast.error('Too many submissions', {
-              description: response.data.message || 'Please try again later.',
-            });
-            return false;
+      // For anonymous submissions, use the rate-limited edge function
+      if (!user) {
+        try {
+          const response = await supabase.functions.invoke('submit-anonymous', {
+            body: {
+              type: 'complaint',
+              data: {
+                description: complaint.description,
+                complaint_type: complaint.complaint_type,
+                location_name: complaint.location_name,
+                latitude: complaint.latitude,
+                longitude: complaint.longitude,
+              },
+            },
+          });
+
+          if (response.error) {
+            throw new Error(response.error.message || 'Failed to submit');
           }
-          throw new Error(response.data.error);
+
+          if (response.data?.error) {
+            if (response.data.error === 'Rate limit exceeded') {
+              toast.error('Too many submissions', {
+                description: response.data.message || 'Please try again later.',
+              });
+              return false;
+            }
+            throw new Error(response.data.error);
+          }
+        } catch (anonymousError) {
+          console.warn('Anonymous function failed, falling back to direct complaint insert:', anonymousError);
+          // Fallback keeps citizen reporting available even when edge functions are unreachable.
+          await insertDirectly(null);
         }
 
         toast.success('Complaint submitted successfully!', {
-          description: 'Your complaint has been registered and will be reviewed.',
+          description: 'Your complaint is now visible in the admin dashboard for review.',
         });
 
         await fetchComplaints();
@@ -95,15 +110,10 @@ export function useComplaints() {
       }
 
       // For authenticated users, use direct insert
-      const { error: insertError } = await supabase.from('complaints').insert({
-        ...complaint,
-        user_id: user.id,
-      });
-
-      if (insertError) throw insertError;
+      await insertDirectly(user.id);
 
       toast.success('Complaint submitted successfully!', {
-        description: 'Your complaint has been registered and will be reviewed.',
+        description: 'Your complaint is now visible in the admin dashboard for review.',
       });
 
       // Refresh complaints list
@@ -113,7 +123,7 @@ export function useComplaints() {
       console.error('Error submitting complaint:', err);
       setError('Failed to submit complaint');
       toast.error('Failed to submit complaint', {
-        description: 'Please try again later.',
+        description: err instanceof Error ? err.message : 'Please try again later.',
       });
       return false;
     } finally {

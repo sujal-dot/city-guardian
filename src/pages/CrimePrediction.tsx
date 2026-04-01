@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { HourlyPredictionChart } from '@/components/dashboard/HourlyPredictionChart';
 import { CrimeTrendChart } from '@/components/dashboard/CrimeTrendChart';
+import { PredictionAccuracyChart } from '@/components/dashboard/PredictionAccuracyChart';
 import { useCrimePrediction } from '@/hooks/useCrimePrediction';
-import { Brain, TrendingUp, Target, AlertTriangle, Clock, MapPin, Database, Cpu, Loader2, Zap } from 'lucide-react';
+import { Brain, TrendingUp, Target, AlertTriangle, Clock, MapPin, Database, Cpu, Loader2, Zap, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 
 export default function CrimePrediction() {
   const { 
@@ -17,6 +19,7 @@ export default function CrimePrediction() {
     runPrediction, 
     dataStats 
   } = useCrimePrediction();
+  const { toast } = useToast();
   
   const [predictionType, setPredictionType] = useState<'hotspot' | 'trend' | 'risk' | 'patrol'>('hotspot');
 
@@ -30,10 +33,83 @@ export default function CrimePrediction() {
   const highRiskCount = prediction?.prediction?.highRiskCount || hotspots.filter(h => h.riskScore >= 70).length;
   const predictedTotal = hotspots.reduce((sum, h) => sum + (h.predictedCrimes || 0), 0) || 28;
 
+  const handleDownloadReport = () => {
+    if (!prediction) {
+      toast({
+        title: 'Run prediction first',
+        description: 'Generate a prediction result before downloading a report.',
+      });
+      return;
+    }
+
+    let headers: string[] = [];
+    let rows: Array<Array<string | number>> = [];
+
+    if (predictionType === 'hotspot') {
+      headers = ['Zone', 'Risk Score', 'Predicted Incidents', 'Peak Hours', 'Likely Crime', 'Crime Probability (%)', 'Confidence (%)', 'Crime Types', 'Reasoning'];
+      rows = (prediction.prediction.hotspots ?? []).map((hotspot) => [
+        hotspot.zone,
+        hotspot.riskScore,
+        hotspot.predictedCrimes,
+        hotspot.peakHours,
+        hotspot.topCrimeType ?? '',
+        hotspot.topCrimeProbability ?? '',
+        hotspot.confidence ?? '',
+        hotspot.crimeTypes.join(' | '),
+        hotspot.reasoning ?? '',
+      ]);
+    } else if (predictionType === 'trend') {
+      headers = ['Crime Type', 'Direction', 'Change (%)', 'Prediction'];
+      rows = (prediction.prediction.trends ?? []).map((trend) => [
+        trend.crimeType,
+        trend.direction,
+        trend.percentChange,
+        trend.prediction,
+      ]);
+    } else if (predictionType === 'risk') {
+      headers = ['Area', 'Risk Score', 'Risk Factors', 'Recommendation'];
+      rows = (prediction.prediction.riskZones ?? []).map((zone) => [
+        zone.area,
+        zone.riskScore,
+        zone.factors.join(' | '),
+        zone.recommendation,
+      ]);
+    } else if (predictionType === 'patrol') {
+      headers = ['Priority', 'Area', 'Suggested Time', 'Officers Needed', 'Crime Types'];
+      rows = (prediction.prediction.routes ?? []).map((route) => [
+        route.priority,
+        route.area,
+        route.suggestedTime,
+        route.officersNeeded,
+        route.crimeTypes.join(' | '),
+      ]);
+    }
+
+    if (rows.length === 0) {
+      toast({
+        title: 'No report data',
+        description: 'No records available for this prediction type yet.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const timestamp = new Date(prediction.timestamp || new Date().toISOString())
+      .toISOString()
+      .replace(/[:.]/g, '-');
+    const filename = `lokrakshak-${predictionType}-report-${timestamp}.csv`;
+
+    downloadCsv(filename, headers, rows);
+    toast({
+      title: 'Report downloaded',
+      description: `Saved ${rows.length} record${rows.length > 1 ? 's' : ''} as CSV.`,
+    });
+  };
+
   return (
     <DashboardLayout
       title="Crime Prediction"
-      subtitle="AI-powered crime forecasting using real FIR data"
+      subtitle="Random Forest-based crime forecasting using real FIR data"
     >
       <div className="space-y-6">
         {/* Data & Algorithm Info */}
@@ -69,6 +145,16 @@ export default function CrimePrediction() {
                   <SelectItem value="patrol">Patrol Routes</SelectItem>
                 </SelectContent>
               </Select>
+
+              <Button
+                variant="outline"
+                onClick={handleDownloadReport}
+                disabled={!prediction || isLoading}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download Report
+              </Button>
               
               <Button 
                 onClick={handleRunPrediction} 
@@ -169,6 +255,8 @@ export default function CrimePrediction() {
           <CrimeTrendChart />
         </div>
 
+        <PredictionAccuracyChart />
+
         {/* Predicted Hotspots */}
         <div className="card-command">
           <div className="px-6 py-4 border-b border-border">
@@ -230,6 +318,11 @@ export default function CrimePrediction() {
                           <Clock className="h-4 w-4" />
                           <span>Peak hours: {hotspot.peakHours}</span>
                         </div>
+                        {hotspot.topCrimeType && hotspot.topCrimeProbability ? (
+                          <div className="text-xs text-muted-foreground">
+                            Likely crime: {hotspot.topCrimeType} ({hotspot.topCrimeProbability}%)
+                          </div>
+                        ) : null}
                         {hotspot.confidence && (
                           <div className="text-xs text-muted-foreground">
                             Confidence: {hotspot.confidence}%
@@ -332,6 +425,30 @@ export default function CrimePrediction() {
       </div>
     </DashboardLayout>
   );
+}
+
+function escapeCsvValue(value: string | number): string {
+  const text = String(value ?? '');
+  if (/[",\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function downloadCsv(filename: string, headers: string[], rows: Array<Array<string | number>>) {
+  const headerLine = headers.map(escapeCsvValue).join(',');
+  const bodyLines = rows.map((row) => row.map(escapeCsvValue).join(','));
+  const csvContent = [headerLine, ...bodyLines].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 // Default hotspots when no prediction has been run

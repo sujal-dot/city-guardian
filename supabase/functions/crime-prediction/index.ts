@@ -14,13 +14,472 @@ interface CrimeRecord {
   longitude: number;
   address: string;
   registrationDate: string;
+  incidentCount?: number;
+  riskScore?: number;
 }
 
 interface PredictionRequest {
   crimeData: CrimeRecord[];
   targetArea?: string;
-  predictionType: 'hotspot' | 'trend' | 'risk' | 'patrol';
+  predictionType: "hotspot" | "trend" | "risk" | "patrol";
 }
+
+interface ForestRow {
+  label: string;
+  features: number[];
+  weight: number;
+}
+
+interface LeafNode {
+  leaf: true;
+  probabilities: { crimeType: string; probability: number }[];
+}
+
+interface SplitNode {
+  leaf: false;
+  featureIndex: number;
+  threshold: number;
+  left: TreeNode;
+  right: TreeNode;
+}
+
+type TreeNode = LeafNode | SplitNode;
+
+const FEATURE_COUNT = 7;
+const TREE_COUNT = 21;
+const MAX_DEPTH = 5;
+const MIN_SAMPLES = 8;
+const FEATURES_PER_SPLIT = 3;
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const parseDateSafe = (value?: string) => {
+  const parsed = value ? new Date(value) : new Date();
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
+const getHourFromDateString = (value?: string) => {
+  if (!value) return 12;
+  const match = String(value).match(/(?:T|\s)(\d{2}):/);
+  if (!match) return 12;
+  const hour = Number.parseInt(match[1], 10);
+  return Number.isFinite(hour) ? clamp(hour, 0, 23) : 12;
+};
+
+const toFeatureVector = (record: CrimeRecord, now = new Date()): number[] => {
+  const eventDate = parseDateSafe(record.registrationDate);
+  const daysSinceReported = Math.round(
+    Math.max(0, now.getTime() - eventDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
+  return [
+    Number(record.latitude || 0),
+    Number(record.longitude || 0),
+    getHourFromDateString(record.registrationDate),
+    eventDate.getDay(),
+    eventDate.getMonth() + 1,
+    clamp(Number(record.riskScore || 50), 0, 100),
+    clamp(daysSinceReported, 0, 3650),
+  ];
+};
+
+const buildRows = (records: CrimeRecord[]): ForestRow[] =>
+  records
+    .filter((record) => Number.isFinite(record.latitude) && Number.isFinite(record.longitude))
+    .map((record) => ({
+      label: record.crimeType || "Unknown",
+      features: toFeatureVector(record),
+      weight: clamp(Number(record.incidentCount || 1), 1, 30),
+    }));
+
+const gini = (rows: ForestRow[]) => {
+  let totalWeight = 0;
+  const classWeight = new Map<string, number>();
+  for (const row of rows) {
+    totalWeight += row.weight;
+    classWeight.set(row.label, (classWeight.get(row.label) || 0) + row.weight);
+  }
+  if (totalWeight === 0) return 0;
+
+  let impurity = 1;
+  for (const weight of classWeight.values()) {
+    const probability = weight / totalWeight;
+    impurity -= probability * probability;
+  }
+  return impurity;
+};
+
+const summarizeLeaf = (rows: ForestRow[]): LeafNode => {
+  let totalWeight = 0;
+  const classWeight = new Map<string, number>();
+
+  for (const row of rows) {
+    totalWeight += row.weight;
+    classWeight.set(row.label, (classWeight.get(row.label) || 0) + row.weight);
+  }
+
+  const probabilities = Array.from(classWeight.entries())
+    .map(([crimeType, weight]) => ({
+      crimeType,
+      probability: totalWeight > 0 ? (weight / totalWeight) * 100 : 0,
+    }))
+    .sort((a, b) => b.probability - a.probability);
+
+  return { leaf: true, probabilities };
+};
+
+const randomFeatureSubset = (count: number, subsetSize: number) => {
+  const features = Array.from({ length: count }, (_, i) => i);
+  for (let i = features.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [features[i], features[j]] = [features[j], features[i]];
+  }
+  return features.slice(0, subsetSize);
+};
+
+const findSplit = (rows: ForestRow[]) => {
+  const candidates = randomFeatureSubset(FEATURE_COUNT, FEATURES_PER_SPLIT);
+  let bestImpurity = Number.POSITIVE_INFINITY;
+  let best: null | { featureIndex: number; threshold: number; left: ForestRow[]; right: ForestRow[] } = null;
+
+  for (const featureIndex of candidates) {
+    const sorted = [...rows].sort((a, b) => a.features[featureIndex] - b.features[featureIndex]);
+    if (sorted.length < 2) continue;
+
+    const stride = Math.max(1, Math.floor(sorted.length / 8));
+    for (let i = stride; i < sorted.length; i += stride) {
+      const leftValue = sorted[i - 1].features[featureIndex];
+      const rightValue = sorted[i].features[featureIndex];
+      if (leftValue === rightValue) continue;
+
+      const threshold = (leftValue + rightValue) / 2;
+      const left: ForestRow[] = [];
+      const right: ForestRow[] = [];
+
+      for (const row of sorted) {
+        if (row.features[featureIndex] <= threshold) {
+          left.push(row);
+        } else {
+          right.push(row);
+        }
+      }
+
+      if (left.length === 0 || right.length === 0) continue;
+
+      const leftWeight = left.reduce((sum, row) => sum + row.weight, 0);
+      const rightWeight = right.reduce((sum, row) => sum + row.weight, 0);
+      const totalWeight = leftWeight + rightWeight;
+      const impurity = (leftWeight / totalWeight) * gini(left) + (rightWeight / totalWeight) * gini(right);
+
+      if (impurity < bestImpurity) {
+        bestImpurity = impurity;
+        best = { featureIndex, threshold, left, right };
+      }
+    }
+  }
+
+  return best;
+};
+
+const buildTree = (rows: ForestRow[], depth = 0): TreeNode => {
+  if (rows.length < MIN_SAMPLES || depth >= MAX_DEPTH || gini(rows) < 0.01) {
+    return summarizeLeaf(rows);
+  }
+  const split = findSplit(rows);
+  if (!split) return summarizeLeaf(rows);
+
+  return {
+    leaf: false,
+    featureIndex: split.featureIndex,
+    threshold: split.threshold,
+    left: buildTree(split.left, depth + 1),
+    right: buildTree(split.right, depth + 1),
+  };
+};
+
+const bootstrap = (rows: ForestRow[]) => {
+  const sampled: ForestRow[] = [];
+  for (let i = 0; i < rows.length; i += 1) {
+    sampled.push(rows[Math.floor(Math.random() * rows.length)]);
+  }
+  return sampled;
+};
+
+const predictTree = (tree: TreeNode, features: number[]) => {
+  let node = tree;
+  while (!node.leaf) {
+    node = features[node.featureIndex] <= node.threshold ? node.left : node.right;
+  }
+  return node.probabilities;
+};
+
+const predictProbabilities = (trees: TreeNode[], features: number[]) => {
+  const totals = new Map<string, number>();
+
+  for (const tree of trees) {
+    const probabilities = predictTree(tree, features);
+    probabilities.forEach((entry) => {
+      totals.set(entry.crimeType, (totals.get(entry.crimeType) || 0) + entry.probability);
+    });
+  }
+
+  const averaged = Array.from(totals.entries())
+    .map(([crimeType, score]) => ({
+      crimeType,
+      probability: score / Math.max(trees.length, 1),
+    }))
+    .sort((a, b) => b.probability - a.probability);
+
+  const total = averaged.reduce((sum, item) => sum + item.probability, 0) || 1;
+  return averaged.slice(0, 5).map((item) => ({
+    crimeType: item.crimeType,
+    probability: Number(((item.probability / total) * 100).toFixed(1)),
+  }));
+};
+
+const trainForest = (records: CrimeRecord[]) => {
+  const rows = buildRows(records);
+  if (rows.length < 10) {
+    throw new Error("Not enough crime data to train Random Forest model.");
+  }
+
+  const trees: TreeNode[] = [];
+  for (let i = 0; i < TREE_COUNT; i += 1) {
+    trees.push(buildTree(bootstrap(rows)));
+  }
+
+  const sampleSize = Math.min(rows.length, 120);
+  let correct = 0;
+  for (let i = 0; i < sampleSize; i += 1) {
+    const row = rows[Math.floor(Math.random() * rows.length)];
+    const prediction = predictProbabilities(trees, row.features)[0]?.crimeType;
+    if (prediction === row.label) correct += 1;
+  }
+
+  return {
+    trees,
+    accuracy: Number(((correct / Math.max(sampleSize, 1)) * 100).toFixed(1)),
+  };
+};
+
+const zoneSummaries = (records: CrimeRecord[], trees: TreeNode[], accuracy: number) => {
+  const zones = new Map<
+    string,
+    {
+      zoneName: string;
+      weightedLat: number;
+      weightedLng: number;
+      totalWeight: number;
+      riskWeighted: number;
+      totalIncidents: number;
+      hourCounts: number[];
+    }
+  >();
+
+  records.forEach((record) => {
+    const zoneKey = (record.policeStation || record.address || "Unknown").toLowerCase();
+    const zoneName = record.policeStation || record.address || "Unknown";
+    const weight = clamp(Number(record.incidentCount || 1), 1, 50);
+    const risk = clamp(Number(record.riskScore || 50), 0, 100);
+    const hour = getHourFromDateString(record.registrationDate);
+
+    if (!zones.has(zoneKey)) {
+      zones.set(zoneKey, {
+        zoneName,
+        weightedLat: 0,
+        weightedLng: 0,
+        totalWeight: 0,
+        riskWeighted: 0,
+        totalIncidents: 0,
+        hourCounts: Array.from({ length: 24 }, () => 0),
+      });
+    }
+
+    const zone = zones.get(zoneKey)!;
+    zone.weightedLat += Number(record.latitude) * weight;
+    zone.weightedLng += Number(record.longitude) * weight;
+    zone.totalWeight += weight;
+    zone.totalIncidents += weight;
+    zone.riskWeighted += risk * weight;
+    zone.hourCounts[hour] += weight;
+  });
+
+  return Array.from(zones.values()).map((zone) => {
+    const latitude = zone.weightedLat / Math.max(zone.totalWeight, 1);
+    const longitude = zone.weightedLng / Math.max(zone.totalWeight, 1);
+    const avgRisk = zone.riskWeighted / Math.max(zone.totalWeight, 1);
+    const probabilities = predictProbabilities(
+      trees,
+      toFeatureVector({
+        district: zone.zoneName,
+        policeStation: zone.zoneName,
+        year: new Date().getFullYear(),
+        crimeType: "",
+        latitude,
+        longitude,
+        address: zone.zoneName,
+        registrationDate: new Date().toISOString(),
+        incidentCount: Math.max(1, Math.round(zone.totalIncidents / 3)),
+        riskScore: avgRisk,
+      })
+    );
+    const topCrime = probabilities[0];
+    const riskScore = clamp(
+      Math.round(avgRisk * 0.55 + (topCrime?.probability || 0) * 0.35 + Math.min(zone.totalIncidents, 45) * 0.5),
+      20,
+      100
+    );
+    const peakHour = zone.hourCounts.reduce(
+      (bestHour, count, hour) => (count > zone.hourCounts[bestHour] ? hour : bestHour),
+      0
+    );
+
+    return {
+      zone: zone.zoneName,
+      riskScore,
+      predictedCrimes: Math.max(1, Math.round(zone.totalIncidents * (0.35 + avgRisk / 180))),
+      confidence: clamp(Math.round(accuracy * 0.65 + (topCrime?.probability || 0) * 0.35), 45, 98),
+      peakHours: `${String(peakHour).padStart(2, "0")}:00 - ${String((peakHour + 4) % 24).padStart(2, "0")}:00`,
+      topCrimeType: topCrime?.crimeType || "Unknown",
+      topCrimeProbability: topCrime?.probability || 0,
+      crimeProbabilities: probabilities.slice(0, 3),
+      crimeTypes: probabilities.slice(0, 3).map((item) => item.crimeType),
+      totalIncidents: zone.totalIncidents,
+    };
+  });
+};
+
+const buildPrediction = (records: CrimeRecord[], predictionType: PredictionRequest["predictionType"]) => {
+  const { trees, accuracy } = trainForest(records);
+  const zones = zoneSummaries(records, trees, accuracy).sort((a, b) => b.riskScore - a.riskScore);
+  const avgRisk = zones.length ? zones.reduce((sum, zone) => sum + zone.riskScore, 0) / zones.length : 0;
+
+  if (predictionType === "hotspot") {
+    return {
+      hotspots: zones.slice(0, 10).map((zone) => ({
+        zone: zone.zone,
+        riskScore: zone.riskScore,
+        predictedCrimes: zone.predictedCrimes,
+        crimeTypes: zone.crimeTypes,
+        crimeTypeProbabilities: zone.crimeProbabilities,
+        topCrimeType: zone.topCrimeType,
+        topCrimeProbability: zone.topCrimeProbability,
+        peakHours: zone.peakHours,
+        confidence: zone.confidence,
+        reasoning: `${zone.topCrimeType} has the highest predicted probability (${zone.topCrimeProbability.toFixed(1)}%).`,
+      })),
+      overallRiskLevel: avgRisk >= 78 ? "critical" : avgRisk >= 62 ? "high" : avgRisk >= 42 ? "medium" : "low",
+      modelAccuracy: accuracy,
+      dataQuality: records.length > 300 ? "good" : records.length > 120 ? "fair" : "poor",
+      highRiskCount: zones.filter((zone) => zone.riskScore >= 70).length,
+    };
+  }
+
+  if (predictionType === "trend") {
+    const now = new Date();
+    const buckets = new Map<string, { recent: number; previous: number; total: number }>();
+    const hourly = Array.from({ length: 24 }, () => 0);
+    const weekly = DAY_NAMES.map((day) => ({ day, crimeCount: 0 }));
+
+    records.forEach((record) => {
+      const date = parseDateSafe(record.registrationDate);
+      const daysAgo = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysAgo > 60) return;
+      const type = record.crimeType || "Unknown";
+      const weight = clamp(Number(record.incidentCount || 1), 1, 50);
+      if (!buckets.has(type)) {
+        buckets.set(type, { recent: 0, previous: 0, total: 0 });
+      }
+      const bucket = buckets.get(type)!;
+      if (daysAgo <= 30) bucket.recent += weight;
+      else bucket.previous += weight;
+      bucket.total += weight;
+      hourly[getHourFromDateString(record.registrationDate)] += weight;
+      weekly[date.getDay()].crimeCount += weight;
+    });
+
+    const maxHourly = Math.max(...hourly, 1);
+    return {
+      trends: Array.from(buckets.entries())
+        .sort((a, b) => b[1].total - a[1].total)
+        .slice(0, 8)
+        .map(([crimeType, bucket]) => {
+          const baseline = Math.max(bucket.previous, 1);
+          const percentChange = Number((((bucket.recent - bucket.previous) / baseline) * 100).toFixed(1));
+          const direction =
+            percentChange > 12 ? "increasing" : percentChange < -12 ? "decreasing" : "stable";
+          return {
+            crimeType,
+            direction,
+            percentChange,
+            prediction:
+              direction === "increasing"
+                ? `Likely rise in ${crimeType} next week.`
+                : direction === "decreasing"
+                ? `Expected reduction for ${crimeType}.`
+                : `Pattern remains stable for ${crimeType}.`,
+          };
+        }),
+      hourlyDistribution: hourly.map((crimeCount, hour) => ({
+        hour,
+        crimeCount: Math.round(crimeCount),
+        riskLevel:
+          crimeCount / maxHourly > 0.66
+            ? "high"
+            : crimeCount / maxHourly > 0.33
+            ? "medium"
+            : "low",
+      })),
+      weeklyPattern: weekly.map((item) => ({
+        day: item.day,
+        crimeCount: Math.round(item.crimeCount),
+      })),
+      modelAccuracy: accuracy,
+    };
+  }
+
+  if (predictionType === "risk") {
+    const riskZones = zones.slice(0, 10).map((zone) => ({
+      area: zone.zone,
+      riskScore: zone.riskScore,
+      factors: [
+        `Likely crime: ${zone.topCrimeType} (${zone.topCrimeProbability.toFixed(1)}%)`,
+        `Historical incident weight: ${zone.totalIncidents}`,
+        `Peak alert window: ${zone.peakHours}`,
+      ],
+      recommendation:
+        zone.riskScore >= 75
+          ? "Deploy rapid response units and issue immediate public alerts."
+          : zone.riskScore >= 60
+          ? "Increase patrols and share citizen travel warnings."
+          : "Maintain routine patrol and awareness.",
+    }));
+    const highRiskCount = riskZones.filter((zone) => zone.riskScore >= 70).length;
+    return {
+      riskZones,
+      overallAssessment:
+        highRiskCount > 0
+          ? `${highRiskCount} zones need immediate preventive coverage.`
+          : "No critical zones detected.",
+      highRiskCount,
+      preventionRate: clamp(Math.round(accuracy * 0.75 + (100 - highRiskCount * 4) * 0.25), 55, 96),
+      modelAccuracy: accuracy,
+    };
+  }
+
+  return {
+    routes: zones.slice(0, 8).map((zone, index) => ({
+      priority: index + 1,
+      area: zone.zone,
+      suggestedTime: zone.peakHours,
+      crimeTypes: zone.crimeTypes.slice(0, 2),
+      officersNeeded: clamp(Math.round(zone.riskScore / 22), 2, 8),
+    })),
+    coverageOptimization:
+      "Prioritize top-risk corridors first, then rotate patrols to adjacent medium-risk zones.",
+    modelAccuracy: accuracy,
+  };
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -28,252 +487,61 @@ serve(async (req) => {
   }
 
   try {
-    const { crimeData, targetArea, predictionType } = await req.json() as PredictionRequest;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const { crimeData, targetArea, predictionType } = (await req.json()) as PredictionRequest;
+
+    if (!Array.isArray(crimeData) || crimeData.length === 0) {
+      throw new Error("crimeData is required");
     }
 
-    // Prepare crime statistics summary for the AI
-    const crimeStats = analyzeCrimeData(crimeData, targetArea);
-    
-    const systemPrompt = `You are an advanced crime prediction AI analyst using pattern recognition on historical crime data. 
-Your analysis is based on:
-- Temporal patterns (time of day, day of week, seasonal trends)
-- Spatial clustering (geographic hotspots)
-- Crime type correlations
-- Historical frequency analysis
+    const filtered = targetArea
+      ? crimeData.filter(
+          (row) =>
+            row.policeStation?.toLowerCase().includes(targetArea.toLowerCase()) ||
+            row.district?.toLowerCase().includes(targetArea.toLowerCase())
+        )
+      : crimeData;
 
-You use a combination of:
-1. **Time Series Analysis** - For trend prediction and seasonal patterns
-2. **Spatial Clustering (DBSCAN-like)** - For hotspot identification
-3. **Risk Scoring Model** - Weighted combination of crime frequency, recency, and severity
-4. **Pattern Recognition** - Identifying correlations between crime types and locations
-
-Always provide actionable insights with confidence levels based on data quality.`;
-
-    let userPrompt = '';
-    
-    if (predictionType === 'hotspot') {
-      userPrompt = `Analyze this crime data and identify hotspots:
-
-Crime Statistics Summary:
-${JSON.stringify(crimeStats, null, 2)}
-
-Provide predictions in this JSON format:
-{
-  "hotspots": [
-    {
-      "zone": "Area name",
-      "riskScore": 0-100,
-      "predictedCrimes": number,
-      "crimeTypes": ["type1", "type2"],
-      "peakHours": "HH:MM - HH:MM",
-      "confidence": 0-100,
-      "reasoning": "brief explanation"
-    }
-  ],
-  "overallRiskLevel": "low|medium|high|critical",
-  "modelAccuracy": 0-100,
-  "dataQuality": "good|fair|poor"
-}`;
-    } else if (predictionType === 'trend') {
-      userPrompt = `Analyze crime trends from this data:
-
-Crime Statistics Summary:
-${JSON.stringify(crimeStats, null, 2)}
-
-Provide trend analysis in this JSON format:
-{
-  "trends": [
-    {
-      "crimeType": "type",
-      "direction": "increasing|decreasing|stable",
-      "percentChange": number,
-      "prediction": "next period forecast"
-    }
-  ],
-  "hourlyDistribution": [
-    { "hour": 0-23, "crimeCount": number, "riskLevel": "low|medium|high" }
-  ],
-  "weeklyPattern": [
-    { "day": "Monday-Sunday", "crimeCount": number }
-  ]
-}`;
-    } else if (predictionType === 'risk') {
-      userPrompt = `Calculate risk scores for areas in this data:
-
-Crime Statistics Summary:
-${JSON.stringify(crimeStats, null, 2)}
-
-Provide risk assessment in this JSON format:
-{
-  "riskZones": [
-    {
-      "area": "location name",
-      "riskScore": 0-100,
-      "factors": ["factor1", "factor2"],
-      "recommendation": "action to take"
-    }
-  ],
-  "overallAssessment": "summary",
-  "highRiskCount": number,
-  "preventionRate": 0-100
-}`;
-    } else {
-      userPrompt = `Suggest optimal patrol routes based on this crime data:
-
-Crime Statistics Summary:
-${JSON.stringify(crimeStats, null, 2)}
-
-Provide patrol suggestions in this JSON format:
-{
-  "routes": [
-    {
-      "priority": 1-5,
-      "area": "zone name",
-      "suggestedTime": "HH:MM - HH:MM",
-      "crimeTypes": ["types to watch"],
-      "officersNeeded": number
-    }
-  ],
-  "coverageOptimization": "strategy description"
-}`;
+    if (filtered.length < 10) {
+      throw new Error("Not enough records for this area to run Random Forest prediction.");
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.3,
+    const normalizedType: PredictionRequest["predictionType"] =
+      predictionType === "trend" || predictionType === "risk" || predictionType === "patrol"
+        ? predictionType
+        : "hotspot";
+
+    const prediction = buildPrediction(filtered, normalizedType);
+
+    return new Response(
+      JSON.stringify({
+        prediction,
+        algorithm: {
+          name: "Random Forest Crime Predictor",
+          components: [
+            "Bootstrap Aggregation (Bagging)",
+            "Decision Tree Ensemble",
+            "Feature Randomization Per Split",
+            "Probability Voting for Crime Type Forecasting",
+          ],
+          model: "random-forest-v1",
+          dataPoints: filtered.length,
+        },
+        timestamp: new Date().toISOString(),
       }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    
-    // Extract JSON from the response
-    let prediction;
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      prediction = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: "Failed to parse prediction" };
-    } catch {
-      prediction = { rawResponse: content };
-    }
-
-    return new Response(JSON.stringify({
-      prediction,
-      algorithm: {
-        name: "Hybrid ML Pipeline",
-        components: [
-          "Time Series Analysis (ARIMA-like patterns)",
-          "Spatial Clustering (DBSCAN for hotspot detection)",
-          "Risk Scoring (Weighted frequency model)",
-          "Transformer-based Pattern Recognition (Gemini 3)"
-        ],
-        model: "google/gemini-3-flash-preview",
-        dataPoints: crimeData.length
-      },
-      timestamp: new Date().toISOString()
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-
+    );
   } catch (error) {
     console.error("Prediction error:", error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : "Unknown error" 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 });
-
-function analyzeCrimeData(data: CrimeRecord[], targetArea?: string) {
-  const filtered = targetArea 
-    ? data.filter(d => d.policeStation?.toLowerCase().includes(targetArea.toLowerCase()) ||
-                       d.district?.toLowerCase().includes(targetArea.toLowerCase()))
-    : data;
-
-  // Crime type distribution
-  const crimeTypeCounts: Record<string, number> = {};
-  filtered.forEach(record => {
-    const type = record.crimeType || 'Unknown';
-    crimeTypeCounts[type] = (crimeTypeCounts[type] || 0) + 1;
-  });
-
-  // Location distribution
-  const locationCounts: Record<string, number> = {};
-  filtered.forEach(record => {
-    const loc = record.policeStation || record.address || 'Unknown';
-    locationCounts[loc] = (locationCounts[loc] || 0) + 1;
-  });
-
-  // Time analysis (extract hour from registration date if possible)
-  const hourCounts: Record<number, number> = {};
-  filtered.forEach(record => {
-    if (record.registrationDate) {
-      const match = record.registrationDate.match(/(\d{2}):(\d{2}):\d{2}/);
-      if (match) {
-        const hour = parseInt(match[1]);
-        hourCounts[hour] = (hourCounts[hour] || 0) + 1;
-      }
-    }
-  });
-
-  // Get unique coordinates for spatial analysis
-  const uniqueLocations = new Map<string, { lat: number; lng: number; count: number }>();
-  filtered.forEach(record => {
-    if (record.latitude && record.longitude) {
-      const key = `${record.latitude.toFixed(4)},${record.longitude.toFixed(4)}`;
-      const existing = uniqueLocations.get(key);
-      if (existing) {
-        existing.count++;
-      } else {
-        uniqueLocations.set(key, { lat: record.latitude, lng: record.longitude, count: 1 });
-      }
-    }
-  });
-
-  return {
-    totalRecords: filtered.length,
-    crimeTypeDistribution: crimeTypeCounts,
-    topLocations: Object.entries(locationCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([location, count]) => ({ location, count })),
-    hourlyDistribution: hourCounts,
-    spatialClusters: Array.from(uniqueLocations.values())
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 20),
-    targetArea: targetArea || 'All areas'
-  };
-}

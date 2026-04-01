@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
 import { useCrimeData } from '@/hooks/useCrimeData';
 import { useIncidents } from '@/hooks/useIncidents';
-import { useCrimePrediction, CrimeRecord } from '@/hooks/useCrimePrediction';
+import { useCrimePrediction } from '@/hooks/useCrimePrediction';
 import { AlertTriangle, Clock, MapPin, Crosshair, Loader2, Layers, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
@@ -12,7 +12,16 @@ import { Label } from '@/components/ui/label';
 
 // Extend L type to include heatLayer
 declare module 'leaflet' {
-  function heatLayer(latlngs: Array<[number, number, number]>, options?: any): L.Layer;
+  function heatLayer(
+    latlngs: Array<[number, number, number]>,
+    options?: {
+      radius?: number;
+      blur?: number;
+      maxZoom?: number;
+      max?: number;
+      gradient?: Record<number, string>;
+    }
+  ): L.Layer;
 }
 // Thane city center coordinates
 const THANE_CENTER: [number, number] = [19.2183, 72.9781];
@@ -44,7 +53,7 @@ const getHeatIntensity = (incidentCount: number) => {
 export function EnhancedCrimeMap() {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
-  const heatLayerRef = useRef<any>(null);
+  const heatLayerRef = useRef<L.Layer | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const circlesLayerRef = useRef<L.LayerGroup | null>(null);
 
@@ -76,10 +85,9 @@ export function EnhancedCrimeMap() {
 
     mapInstanceRef.current = map;
 
-    // Dark tile layer
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
     }).addTo(map);
 
@@ -101,15 +109,41 @@ export function EnhancedCrimeMap() {
     };
   }, []);
 
-  // Memoize and sample CSV data to prevent performance issues
-  const sampledCsvData = useMemo(() => {
-    if (csvData.length <= 500) return csvData;
-    // Sample every nth record to keep ~500 points
-    const step = Math.ceil(csvData.length / 500);
-    return csvData.filter((_, index) => index % step === 0);
+  // Aggregate CSV data by police station (area-wise view)
+  const csvAreaData = useMemo(() => {
+    const buckets = new Map<string, { latSum: number; lngSum: number; count: number }>();
+
+    csvData.forEach((record) => {
+      const lat = Number(record.latitude);
+      const lng = Number(record.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+      const areaKey =
+        record.policeStation?.trim() ||
+        record.address?.trim() ||
+        record.district?.trim() ||
+        'Unknown';
+
+      const current = buckets.get(areaKey) ?? { latSum: 0, lngSum: 0, count: 0 };
+      current.latSum += lat;
+      current.lngSum += lng;
+      current.count += 1;
+      buckets.set(areaKey, current);
+    });
+
+    return Array.from(buckets.entries()).map(([area, bucket]) => ({
+      area,
+      latitude: bucket.latSum / bucket.count,
+      longitude: bucket.lngSum / bucket.count,
+      count: bucket.count,
+    }));
   }, [csvData]);
 
-  // Update heatmap layer with CSV data
+  const maxCsvAreaCount = useMemo(() => {
+    return csvAreaData.reduce((max, entry) => Math.max(max, entry.count), 1);
+  }, [csvAreaData]);
+
+  // Update heatmap layer with area-wise CSV data
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -122,15 +156,18 @@ export function EnhancedCrimeMap() {
 
     if (!showHeatmap || !showCSVData) return;
 
-    // Create heatmap data from sampled CSV
+    // Create heatmap data from aggregated CSV areas
     const heatData: [number, number, number][] = [];
     
-    // Add sampled CSV crime data points
-    sampledCsvData.forEach((record: CrimeRecord) => {
-      if (record.latitude && record.longitude && 
-          !isNaN(record.latitude) && !isNaN(record.longitude)) {
-        heatData.push([record.latitude, record.longitude, 0.5]);
-      }
+    // Add area-wise CSV crime data points with weighted intensity
+    csvAreaData.forEach((area) => {
+      const lat = Number(area.latitude);
+      const lng = Number(area.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+      const normalized = area.count / maxCsvAreaCount;
+      const intensity = 0.25 + normalized * 0.75; // darker + more visible
+      heatData.push([lat, lng, intensity]);
     });
 
     // Add database crime data with intensity based on risk score
@@ -146,23 +183,24 @@ export function EnhancedCrimeMap() {
     if (heatData.length > 0) {
       // Use leaflet.heat for efficient heatmap rendering
       const heatLayer = L.heatLayer(heatData, {
-        radius: 25,
-        blur: 15,
+        radius: 38,
+        blur: 24,
         maxZoom: 17,
         max: 1.0,
         gradient: {
-          0.0: '#22c55e',
-          0.25: '#eab308',
-          0.5: '#f97316',
-          0.75: '#ef4444',
-          1.0: '#dc2626',
+          0.0: '#0b1220',
+          0.2: '#1f2937',
+          0.4: '#4c1d1d',
+          0.6: '#7f1d1d',
+          0.8: '#991b1b',
+          1.0: '#b91c1c',
         },
       });
 
       heatLayer.addTo(map);
       heatLayerRef.current = heatLayer;
     }
-  }, [sampledCsvData, crimeData, showHeatmap, showCSVData]);
+  }, [csvAreaData, maxCsvAreaCount, crimeData, showHeatmap, showCSVData]);
 
   // Update crime data circles
   useEffect(() => {

@@ -3,6 +3,44 @@ import { Phone, AlertTriangle, MapPin, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSOS } from '@/hooks/useSOS';
 import { useGeolocation } from '@/hooks/useGeolocation';
+import { toast } from 'sonner';
+
+const GEOLOCATION_ERROR = {
+  PERMISSION_DENIED: 1,
+  POSITION_UNAVAILABLE: 2,
+  TIMEOUT: 3,
+} as const;
+
+function getLocationErrorMessage(error: unknown): { title: string; description: string } {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code?: number }).code;
+
+    switch (code) {
+      case GEOLOCATION_ERROR.PERMISSION_DENIED:
+        return {
+          title: 'Location permission denied',
+          description: 'Allow location access in browser/site settings and try again.',
+        };
+      case GEOLOCATION_ERROR.POSITION_UNAVAILABLE:
+        return {
+          title: 'Location unavailable',
+          description: 'Turn on GPS/location services and try again.',
+        };
+      case GEOLOCATION_ERROR.TIMEOUT:
+        return {
+          title: 'Location request timed out',
+          description: 'Move to an open area and try SOS again.',
+        };
+      default:
+        break;
+    }
+  }
+
+  return {
+    title: 'Location required for SOS',
+    description: 'Enable location permission and try again.',
+  };
+}
 
 export function SOSButton() {
   const [isActive, setIsActive] = useState(false);
@@ -11,12 +49,16 @@ export function SOSButton() {
 
   const handleSOS = async () => {
     try {
-      // Try to get location
-      let location: { latitude: number; longitude: number } | undefined;
+      // Fetch live coordinates immediately when SOS is pressed.
+      let location: { latitude: number; longitude: number };
       try {
         location = await getCurrentPosition();
-      } catch (err) {
-        console.log('Could not get location, sending SOS without it');
+      } catch (error) {
+        const message = getLocationErrorMessage(error);
+        toast.error(message.title, {
+          description: message.description,
+        });
+        return;
       }
 
       const success = await sendSOSAlert(location);

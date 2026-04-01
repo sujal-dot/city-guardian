@@ -4,7 +4,7 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 export default function Landing() {
-  const { user, roles, isLoading } = useAuthContext();
+  const { user, effectiveRoles, isLoading } = useAuthContext();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -16,12 +16,12 @@ export default function Landing() {
     }
 
     // Route based on role
-    if (roles.includes('admin') || roles.includes('police')) {
+    if (effectiveRoles.includes('admin') || effectiveRoles.includes('police')) {
       navigate('/', { replace: true });
     } else {
       navigate('/citizen', { replace: true });
     }
-  }, [user, roles, isLoading, navigate]);
+  }, [user, effectiveRoles, isLoading, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background">
